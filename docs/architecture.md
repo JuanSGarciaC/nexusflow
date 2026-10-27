@@ -20,8 +20,8 @@ flowchart TB
 
     subgraph NexusFlow["NexusFlow (una imagen, varios procesos)"]
         api[api<br/>FastAPI]
-        worker[worker<br/>Celery · <i>Fase 4</i>]
-        beat[beat<br/>tareas periódicas · <i>Fase 4</i>]
+        worker[worker<br/>Celery]
+        beat[beat<br/>barrido periódico]
     end
 
     pg[(PostgreSQL 16<br/>estado, historial,<br/>outbox, auditoría)]
@@ -63,8 +63,8 @@ api (routers, esquemas HTTP)  →  services (casos de uso)  →  repositories (S
 | `observability` | ✅ parcial | Health checks (métricas en la Fase 7) |
 | `auth` | ✅ | Usuarios, contraseñas, tokens, permisos, endpoints |
 | `workflows` | ✅ | DSL, validación del grafo, versiones inmutables, endpoints |
-| `engine` | Fase 4 | Máquina de estados, orquestador, condiciones |
-| `integrations` | Fase 5 | Adaptadores, credenciales cifradas, cliente HTTP seguro |
+| `engine` | ✅ | Máquinas de estado, runner (reclamo/lease), barrido, cliente HTTP anti-SSRF, Celery |
+| `integrations` | Fase 5 | Credenciales cifradas, adaptadores |
 | `webhooks` | Fase 6 | Entrantes (HMAC) y salientes (outbox) |
 | `audit` | ✅ escritura | Registro de acciones sensibles (la consulta llega en la Fase 7) |
 
@@ -123,15 +123,13 @@ Las tablas se crean fase a fase mediante migraciones. Diseño aprobado:
 
 | Tabla | Fase | Restricciones clave |
 |---|---|---|
-| `users`, `refresh_tokens`, `audit_log`, `workflows`, `workflow_versions` | 2-3 ✅ | Ver [data-model.md](data-model.md) |
+| `users`, `refresh_tokens`, `audit_log`, `workflows`, `workflow_versions`, `workflow_runs`, `step_runs`, `step_attempts` | 2-4 ✅ | Ver [data-model.md](data-model.md) |
 | `triggers` | 3/6 | Secreto HMAC cifrado |
-| `workflow_runs` | 4 | `UNIQUE(workflow_id, idempotency_key)` |
-| `step_runs`, `step_attempts` | 4 | `UNIQUE(run_id, step_id)` |
 | `credentials` | 5 | Secreto cifrado (Fernet / MultiFernet); nunca se serializa |
 | `inbound_webhook_events` | 6 | `UNIQUE(trigger_id, event_key)`: deduplicación y anti-replay |
 | `webhook_subscriptions`, `webhook_deliveries` | 6 | Outbox con índice parcial sobre las pendientes |
 
-## 7. Garantías de ejecución (planificado, Fase 4-5)
+## 7. Garantías de ejecución (implementado, ver [ADR-0007](adr/0007-motor-de-ejecucion.md))
 
 - **Entrega *at-least-once* de Celery** (`acks_late`). Cada tarea toma su paso con
   `SELECT … FOR UPDATE` y verifica que la transición de estado sea válida, así que un
@@ -143,6 +141,25 @@ Las tablas se crean fase a fase mediante migraciones. Diseño aprobado:
     exponencial y *jitter*.
   - *Resultado desconocido* (timeout tras enviar): solo se reintenta si la acción es
     idempotente. Si no lo es, el paso pasa a `needs_review`.
+
+### Ciclo de un paso
+
+```mermaid
+sequenceDiagram
+    participant R as Redis
+    participant W as Worker
+    participant DB as PostgreSQL
+    participant X as API externa
+    R->>W: process_step(step_run_id)
+    W->>DB: TX1 bloquea ejecución y paso, si es reclamable: running + lease + intento
+    Note over W,DB: duplicado → ya está en running → "skipped"
+    W->>X: HTTP (IP validada, Idempotency-Key, timeout)
+    X-->>W: respuesta / timeout / error
+    W->>DB: TX2 ¿el reclamo sigue vigente? éxito → crea el siguiente paso
+    W->>DB: fallo → reintento (backoff) | needs_review | failed
+    W->>R: encola el siguiente o el reintento (después del commit)
+    Note over R,DB: beat (15 s): mensajes perdidos, leases vencidos, plazos
+```
 
 ## 8. Despliegue
 

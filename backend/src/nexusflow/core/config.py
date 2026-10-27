@@ -61,13 +61,29 @@ class Settings(BaseSettings):
     )
     register_rate_limit_per_ip: int = Field(default=5, ge=1, description="Registros por hora e IP")
 
+    # --- Motor de ejecución ---
+    # Broker de Celery. Si no se indica, se usa redis_url.
+    celery_broker_url: SecretStr | None = None
+    run_max_duration_hours: int = Field(default=48, ge=1, le=24 * 30)
+    step_output_max_bytes: int = Field(default=262_144, ge=1024, le=10 * 1_048_576)
+    # Margen sobre el timeout del paso antes de dar por muerto al worker que lo ejecuta.
+    step_lease_grace_seconds: int = Field(default=30, ge=5, le=600)
+    # Esperas más largas no se encolan con countdown: las recoge el barrido periódico.
+    max_dispatch_countdown_seconds: int = Field(default=900, ge=1, le=3000)
+    sweep_interval_seconds: float = Field(default=15.0, ge=1, le=300)
+
+    # --- Salida HTTP (anti-SSRF) ---
+    egress_allow_http: bool = False
+    # Hosts que pueden resolver a IPs privadas. Solo para desarrollo (p. ej. mock-partner).
+    egress_allowed_private_hosts: Annotated[list[str], NoDecode] = Field(default_factory=list)
+
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
     docs_enabled: bool = True
     readiness_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
     # Límite del cuerpo de las peticiones: evita agotar memoria con JSON gigantes.
     max_request_body_bytes: int = Field(default=1_048_576, ge=1024, le=50 * 1_048_576)
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "egress_allowed_private_hosts", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
         # Permite NEXUSFLOW_CORS_ORIGINS="http://a,http://b" además de JSON.
@@ -107,7 +123,15 @@ class Settings(BaseSettings):
             raise ValueError("cors_origins no puede contener '*' en producción")
         if not self.cookie_secure:
             raise ValueError("cookie_secure debe ser true en producción")
+        if self.egress_allow_http or self.egress_allowed_private_hosts:
+            raise ValueError(
+                "egress_allow_http y egress_allowed_private_hosts son solo para desarrollo"
+            )
         return self
+
+    @property
+    def broker_url(self) -> str:
+        return (self.celery_broker_url or self.redis_url).get_secret_value()
 
     @property
     def is_production(self) -> bool:

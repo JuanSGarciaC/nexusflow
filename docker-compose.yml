@@ -22,6 +22,9 @@ x-backend-env: &backend-env
   NEXUSFLOW_LOGIN_RATE_LIMIT_PER_IP: ${NEXUSFLOW_LOGIN_RATE_LIMIT_PER_IP:-20}
   NEXUSFLOW_LOGIN_RATE_LIMIT_PER_EMAIL: ${NEXUSFLOW_LOGIN_RATE_LIMIT_PER_EMAIL:-10}
   NEXUSFLOW_REGISTER_RATE_LIMIT_PER_IP: ${NEXUSFLOW_REGISTER_RATE_LIMIT_PER_IP:-5}
+  NEXUSFLOW_EGRESS_ALLOW_HTTP: ${NEXUSFLOW_EGRESS_ALLOW_HTTP:-false}
+  NEXUSFLOW_EGRESS_ALLOWED_PRIVATE_HOSTS: ${NEXUSFLOW_EGRESS_ALLOWED_PRIVATE_HOSTS:-}
+  NEXUSFLOW_RUN_MAX_DURATION_HOURS: ${NEXUSFLOW_RUN_MAX_DURATION_HOURS:-48}
 
 services:
   postgres:
@@ -70,6 +73,33 @@ services:
     environment: *backend-env
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Ejecuta los pasos. Escala por separado de la API: docker compose up --scale worker=3
+  worker:
+    image: nexusflow-backend:local
+    command: ["celery", "-A", "nexusflow.engine.worker:celery_app", "worker", "--loglevel=INFO", "--concurrency=2"]
+    environment: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    # Al parar, Celery termina las tareas en curso antes de salir (acks_late).
+    stop_grace_period: 60s
+
+  # Barrido periódico: reencola mensajes perdidos, recupera pasos de workers caídos y
+  # vence ejecuciones fuera de plazo. Debe haber UNA sola instancia.
+  beat:
+    image: nexusflow-backend:local
+    command: ["celery", "-A", "nexusflow.engine.worker:celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
+    environment: *backend-env
     depends_on:
       migrate:
         condition: service_completed_successfully

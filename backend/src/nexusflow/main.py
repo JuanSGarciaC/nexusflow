@@ -17,13 +17,16 @@ from nexusflow.core.logging import configure_logging, get_logger
 from nexusflow.core.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
 from nexusflow.core.rate_limit import RateLimiter
 from nexusflow.db.session import create_engine, create_session_factory
+from nexusflow.engine.celery_config import create_celery
+from nexusflow.engine.dispatch import CeleryDispatcher, Dispatcher
+from nexusflow.engine.router import router as runs_router
 from nexusflow.observability import health
 from nexusflow.workflows.router import router as workflows_router
 
 logger = get_logger(__name__)
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, dispatcher: Dispatcher | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level, json_output=settings.log_json)
 
@@ -39,6 +42,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.session_factory = create_session_factory(engine)
         app.state.redis = redis
         app.state.rate_limiter = RateLimiter(redis)
+        # La API solo produce mensajes; se puede inyectar otro dispatcher en pruebas.
+        app.state.dispatcher = dispatcher or CeleryDispatcher(create_celery(settings))
         logger.info("startup", env=settings.env, version=__version__)
         try:
             yield
@@ -78,6 +83,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(workflows_router)
+    app.include_router(runs_router)
     return app
 
 
