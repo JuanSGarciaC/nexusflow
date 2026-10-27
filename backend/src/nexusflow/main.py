@@ -14,10 +14,11 @@ from nexusflow.auth.router import auth_router, users_router
 from nexusflow.core.config import Settings, get_settings
 from nexusflow.core.errors import register_error_handlers
 from nexusflow.core.logging import configure_logging, get_logger
-from nexusflow.core.middleware import RequestContextMiddleware
+from nexusflow.core.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
 from nexusflow.core.rate_limit import RateLimiter
 from nexusflow.db.session import create_engine, create_session_factory
 from nexusflow.observability import health
+from nexusflow.workflows.router import router as workflows_router
 
 logger = get_logger(__name__)
 
@@ -69,12 +70,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
             expose_headers=["X-Request-ID", "Retry-After"],
         )
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_body_bytes)
     # Añadido al final para ser el middleware más externo: todo log lleva request_id.
     app.add_middleware(RequestContextMiddleware)
 
     app.include_router(health.router)
     app.include_router(auth_router)
     app.include_router(users_router)
+    app.include_router(workflows_router)
     return app
 
 

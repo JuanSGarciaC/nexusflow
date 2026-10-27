@@ -130,3 +130,32 @@ def test_readiness_reports_unavailable_dependencies(client: TestClient) -> None:
     assert body["status"] == "error"
     assert body["checks"]["database"]["status"] == "error"
     assert body["checks"]["redis"]["status"] == "error"
+
+
+async def test_body_limit_cuts_chunked_body_without_content_length() -> None:
+    from starlette.types import Message, Receive, Scope, Send
+
+    from nexusflow.core.middleware import BodySizeLimitMiddleware, RequestTooLargeError
+
+    received: list[bytes] = []
+
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        while True:
+            message = await receive()
+            received.append(message.get("body", b""))
+            if not message.get("more_body"):
+                return
+
+    chunks = [b"x" * 600, b"x" * 600, b"x" * 600]
+
+    async def receive() -> Message:
+        body = chunks.pop(0)
+        return {"type": "http.request", "body": body, "more_body": bool(chunks)}
+
+    async def send(message: Message) -> None:  # pragma: no cover - no se llega a responder
+        raise AssertionError("no debería enviar respuesta")
+
+    middleware = BodySizeLimitMiddleware(app, max_bytes=1024)
+    with pytest.raises(RequestTooLargeError):
+        await middleware({"type": "http", "headers": []}, receive, send)
+    assert len(received) == 1  # se cortó al recibir el segundo trozo, sin leer el resto

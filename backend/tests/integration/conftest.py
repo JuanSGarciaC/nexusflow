@@ -101,12 +101,21 @@ def _clean_state() -> None:
 
     async def _truncate(session: AsyncSession) -> None:
         await session.execute(
-            text("TRUNCATE audit_log, refresh_tokens, users RESTART IDENTITY CASCADE")
+            text(
+                "TRUNCATE audit_log, refresh_tokens, workflow_versions, workflows, users "
+                "RESTART IDENTITY CASCADE"
+            )
         )
         await session.commit()
 
     run_db(_truncate)
     SyncRedis.from_url(redis_url()).flushdb()
+
+
+def login_headers(client: TestClient, email: str) -> dict[str, str]:
+    response = client.post("/api/v1/auth/login", json={"email": email, "password": STRONG_PASSWORD})
+    assert response.status_code == 200, response.text
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
 @pytest.fixture

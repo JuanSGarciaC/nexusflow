@@ -1,6 +1,6 @@
 # Modelo de datos
 
-> Refleja las migraciones aplicadas hasta la **Fase 2**. Cada fase añade sus tablas
+> Refleja las migraciones aplicadas hasta la **Fase 3**. Cada fase añade sus tablas
 > mediante una migración de Alembic; `alembic check` en CI garantiza que modelos y
 > migraciones coinciden.
 
@@ -9,6 +9,8 @@ erDiagram
     users ||--o{ refresh_tokens : "tiene"
     users |o--o{ audit_log : "actor de"
     refresh_tokens |o--o| refresh_tokens : "reemplazado por"
+    workflows ||--|{ workflow_versions : "versiones"
+    users |o--o{ workflows : "crea"
 
     users {
         uuid id PK
@@ -41,6 +43,27 @@ erDiagram
         varchar request_id
         jsonb details
     }
+    workflows {
+        uuid id PK
+        varchar name UK
+        text description
+        varchar status "active|archived (CHECK)"
+        uuid created_by FK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    workflow_versions {
+        uuid id PK
+        uuid workflow_id FK "ON DELETE RESTRICT"
+        int version "UNIQUE(workflow_id, version)"
+        int revision "concurrencia optimista"
+        jsonb definition
+        varchar definition_hash "SHA-256 del JSON canónico"
+        uuid created_by FK
+        uuid updated_by FK
+        timestamptz published_at "NULL = borrador"
+        uuid published_by FK
+    }
 ```
 
 ## Decisiones
@@ -55,6 +78,10 @@ erDiagram
 | `family_id` en refresh tokens | Permite revocar de una vez todos los tokens derivados de un mismo login. |
 | `audit_log` con `ON DELETE SET NULL` | El historial sobrevive a la eliminación de usuarios. |
 | `timestamptz` en todas las fechas | Nunca fechas sin zona horaria. |
+| Índice único parcial `(workflow_id) WHERE published_at IS NULL` | Como máximo un borrador por flujo, garantizado por la base de datos. |
+| Trigger `trg_workflow_versions_immutable` | Rechaza `UPDATE`/`DELETE` de una versión publicada: lo ejecutado no puede cambiar. |
+| `definition_hash` | Identifica la definición exacta (JSON canónico) en auditoría y ejecuciones. |
+| `workflows` sin borrado físico | Se archivan; `RESTRICT` en la FK impide borrar un flujo con versiones. |
 | Convención de nombres de restricciones | Nombres deterministas (`uq_users_email`, `fk_refresh_tokens_user_id_users`), así las migraciones son reproducibles. |
 
 ## Tablas planificadas
