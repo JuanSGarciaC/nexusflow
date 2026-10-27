@@ -23,6 +23,7 @@ from nexusflow.engine.schemas import (
     RunSummary,
     StepView,
 )
+from nexusflow.webhooks.outbox import pop_new_deliveries
 from nexusflow.workflows.dsl import STEP_ID_PATTERN
 
 router = APIRouter(prefix="/api/v1", tags=["runs"])
@@ -159,9 +160,14 @@ async def get_run(run_id: uuid.UUID, session: SessionDep, _: Reader) -> RunDetai
     responses={409: {"description": "Ya terminó", **_PROBLEM}},
 )
 async def cancel_run(
-    run_id: uuid.UUID, session: SessionDep, context: ContextDep, actor: Executor
+    run_id: uuid.UUID,
+    session: SessionDep,
+    dispatcher: DispatcherDep,
+    context: ContextDep,
+    actor: Executor,
 ) -> RunDetail:
     await service.cancel_run(session, actor.id, run_id, context)
+    await dispatcher.dispatch(pop_new_deliveries(session))
     return await detail(session, run_id)
 
 
@@ -190,5 +196,5 @@ async def resolve_step(
         data=data,
         context=context,
     )
-    await dispatcher.dispatch(items)
+    await dispatcher.dispatch(items + pop_new_deliveries(session))
     return await detail(session, run_id)

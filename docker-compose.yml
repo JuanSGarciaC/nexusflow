@@ -119,6 +119,7 @@ services:
     environment:
       MOCK_PARTNER_CRM_TOKEN: ${MOCK_PARTNER_CRM_TOKEN:-}
       MOCK_PARTNER_PAYMENTS_KEY: ${MOCK_PARTNER_PAYMENTS_KEY:-}
+      MOCK_PARTNER_WEBHOOK_SECRET: ${MOCK_PARTNER_WEBHOOK_SECRET:-}
     ports:
       - "127.0.0.1:${MOCK_PARTNER_PORT:-8080}:8080"
     restart: unless-stopped

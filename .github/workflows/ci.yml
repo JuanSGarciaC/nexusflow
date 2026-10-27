@@ -102,6 +102,7 @@ jobs:
           sed -i "s|^NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS=.*|NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS=$FERNET|" .env
           sed -i "s/^MOCK_PARTNER_CRM_TOKEN=.*/MOCK_PARTNER_CRM_TOKEN=$(openssl rand -hex 16)/" .env
           sed -i "s/^MOCK_PARTNER_PAYMENTS_KEY=.*/MOCK_PARTNER_PAYMENTS_KEY=$(openssl rand -hex 16)/" .env
+          sed -i "s/^MOCK_PARTNER_WEBHOOK_SECRET=.*/MOCK_PARTNER_WEBHOOK_SECRET=whsec_$(openssl rand -hex 24)/" .env
           # El perfil demo necesita llamar a mock-partner por http dentro de la red de compose.
           sed -i "s/^NEXUSFLOW_EGRESS_ALLOW_HTTP=.*/NEXUSFLOW_EGRESS_ALLOW_HTTP=true/" .env
           sed -i "s/^NEXUSFLOW_EGRESS_ALLOWED_PRIVATE_HOSTS=.*/NEXUSFLOW_EGRESS_ALLOWED_PRIVATE_HOSTS=mock-partner/" .env
@@ -159,7 +160,7 @@ jobs:
             sleep 2
           done
           exit 1
-      - name: Flujo con credenciales cifradas contra la API externa simulada
+      - name: Credenciales cifradas y webhooks firmados contra la API externa simulada
         run: |
           set -a; . ./.env; set +a
           TOKEN=$(curl -fsS http://127.0.0.1:8000/api/v1/auth/login \
@@ -171,8 +172,9 @@ jobs:
           curl -fsS http://127.0.0.1:8000/api/v1/credentials -H "$AUTH" -H "$J" -d "{\"name\":\"crm\",\"type\":\"bearer_token\",\"allowed_hosts\":[\"mock-partner\"],\"secret\":{\"token\":\"$MOCK_PARTNER_CRM_TOKEN\"}}" > /dev/null
           curl -fsS http://127.0.0.1:8000/api/v1/credentials -H "$AUTH" -H "$J" -d "{\"name\":\"pagos\",\"type\":\"api_key_header\",\"allowed_hosts\":[\"mock-partner\"],\"secret\":{\"header_name\":\"X-Api-Key\",\"value\":\"$MOCK_PARTNER_PAYMENTS_KEY\"}}" > /dev/null
           python3 scripts/ci_payment_flow.py "$TOKEN"
+          python3 scripts/ci_webhooks.py "$TOKEN"
           # Ni el token ni la clave aparecen en los logs de ningún contenedor.
-          ! docker compose --profile demo logs --no-color | grep -F -e "$MOCK_PARTNER_CRM_TOKEN" -e "$MOCK_PARTNER_PAYMENTS_KEY"
+          ! docker compose --profile demo logs --no-color | grep -F -e "$MOCK_PARTNER_CRM_TOKEN" -e "$MOCK_PARTNER_PAYMENTS_KEY" -e "$MOCK_PARTNER_WEBHOOK_SECRET"
       - name: Logs del stack
         if: always()
         run: docker compose --profile demo logs --no-color

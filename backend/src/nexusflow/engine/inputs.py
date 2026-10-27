@@ -31,9 +31,15 @@ def _matches(expected: str, value: Any) -> bool:
     return isinstance(value, list)
 
 
-def validate_run_input(fields: list[InputField], data: dict[str, Any]) -> dict[str, Any]:
+def validate_run_input(
+    fields: list[InputField], data: dict[str, Any], *, strict: bool = True
+) -> dict[str, Any]:
+    """Valida tipos y obligatorios. Con strict=False (webhooks entrantes) se ignoran los
+    campos no declarados: un sistema externo suele enviar más datos de los necesarios."""
     errors: list[dict[str, str]] = []
     declared = {f.name: f for f in fields}
+    if not strict:
+        data = {k: v for k, v in data.items() if k in declared}
     for name in data:
         if name not in declared:
             errors.append({"field": name, "msg": "Campo no declarado en las entradas del flujo"})

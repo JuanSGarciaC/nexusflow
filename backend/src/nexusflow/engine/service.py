@@ -76,6 +76,7 @@ async def create_run(
     actor_id: uuid.UUID | None,
     trigger_type: str,
     context: RequestContext,
+    strict_input: bool = True,
 ) -> CreatedRun:
     workflow = await session.get(Workflow, workflow_id)
     if workflow is None:
@@ -99,7 +100,7 @@ async def create_run(
             raise ConflictError("El flujo no tiene ninguna versión publicada.")
 
     definition = parse_stored(version.definition)
-    run_input = validate_run_input(definition.inputs, dict(data.input))
+    run_input = validate_run_input(definition.inputs, dict(data.input), strict=strict_input)
     digest = _input_hash(run_input)
 
     if data.idempotency_key:

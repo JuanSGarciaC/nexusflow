@@ -7,6 +7,7 @@ las conexiones y los códigos de estado son los de verdad.
 from __future__ import annotations
 
 import asyncio
+import json
 import socket
 import threading
 import time
@@ -22,10 +23,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse, Response
 from starlette.routing import Route
 
+RECEIVER_SECRET = "whsec_receptor_de_pruebas_0123456789abcdef"  # solo pruebas
+
 
 class PartnerState:
     def __init__(self) -> None:
         self.lock = threading.Lock()
+        self.received: list[dict[str, Any]] = []
+        self.receiver_failures = 0
         self.calls: Counter[str] = Counter()
         self.idempotency_keys: list[str] = []
         self.charges: dict[str, str] = {}
@@ -38,6 +43,8 @@ class PartnerState:
             self.idempotency_keys.clear()
             self.charges.clear()
             self.healthy = False
+            self.received.clear()
+            self.receiver_failures = 0
 
 
 STATE = PartnerState()
@@ -123,6 +130,34 @@ async def echo(request: Request) -> Response:
     )
 
 
+async def receiver(request: Request) -> Response:
+    """Receptor de webhooks: verifica la firma como lo haría un sistema real."""
+    from nexusflow.webhooks import signing
+
+    body = await request.body()
+    try:
+        signing.verify(
+            request.headers.get(signing.SIGNATURE_HEADER),
+            RECEIVER_SECRET,
+            body,
+            tolerance_seconds=300,
+        )
+    except signing.SignatureError:
+        return JSONResponse({"error": "firma"}, status_code=401)
+    with STATE.lock:
+        if STATE.receiver_failures > 0:
+            STATE.receiver_failures -= 1
+            return JSONResponse({"error": "caído"}, status_code=500)
+        STATE.received.append(
+            {
+                "event_id": request.headers.get(signing.EVENT_ID_HEADER),
+                "event_type": request.headers.get(signing.EVENT_TYPE_HEADER),
+                "payload": json.loads(body),
+            }
+        )
+    return JSONResponse({"ok": True})
+
+
 app = Starlette(
     routes=[
         Route("/customers/{cid}", customer),
@@ -132,6 +167,7 @@ app = Starlette(
         Route("/big", big),
         Route("/status/{code:int}", status, methods=["GET", "POST"]),
         Route("/echo", echo, methods=["GET", "POST", "PUT", "PATCH", "DELETE"]),
+        Route("/receiver", receiver, methods=["POST"]),
     ]
 )
 

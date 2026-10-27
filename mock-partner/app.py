@@ -9,6 +9,10 @@ Endpoints:
 - POST /payments/charges             cabecera X-Api-Key = MOCK_PARTNER_PAYMENTS_KEY;
                                      respeta Idempotency-Key (misma clave → mismo cargo)
 - GET  /payments/charges             cargos realizados (para comprobar duplicados)
+- POST /webhooks/nexusflow           receptor de webhooks salientes de NexusFlow; verifica
+                                     la firma con MOCK_PARTNER_WEBHOOK_SECRET y deduplica
+                                     por X-NexusFlow-Event-Id
+- GET  /webhooks/received            eventos recibidos
 
 Fallos inyectables en cualquier endpoint de negocio:
 - ?delay=<segundos>      responde tarde (provoca timeouts)
@@ -18,8 +22,11 @@ Fallos inyectables en cualquier endpoint de negocio:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import hmac
+import json
 import os
+import time
 import uuid
 from collections import Counter
 from typing import Any
@@ -31,9 +38,12 @@ from starlette.routing import Route
 
 CRM_TOKEN = os.environ.get("MOCK_PARTNER_CRM_TOKEN", "")
 PAYMENTS_KEY = os.environ.get("MOCK_PARTNER_PAYMENTS_KEY", "")
+WEBHOOK_SECRET = os.environ.get("MOCK_PARTNER_WEBHOOK_SECRET", "")
+SIGNATURE_TOLERANCE_SECONDS = 300
 
 _failures: Counter[str] = Counter()
 _charges: dict[str, dict[str, Any]] = {}
+_received: dict[str, dict[str, Any]] = {}
 _lock = asyncio.Lock()
 
 CUSTOMERS = {
@@ -113,11 +123,44 @@ async def list_charges(_: Request) -> Response:
     return JSONResponse({"count": len(_charges), "items": list(_charges.values())})
 
 
+def _valid_signature(header: str, body: bytes) -> bool:
+    """Verificación de referencia, tal como la implementaría un receptor real."""
+    pairs = [part.strip().split("=", 1) for part in header.split(",") if "=" in part]
+    timestamp = next((value for key, value in pairs if key == "t"), "")
+    candidates = [value for key, value in pairs if key == "v1"]
+    if not timestamp.isdigit() or not candidates or not WEBHOOK_SECRET:
+        return False
+    if abs(time.time() - int(timestamp)) > SIGNATURE_TOLERANCE_SECONDS:
+        return False  # anti-replay
+    expected = hmac.new(
+        WEBHOOK_SECRET.encode(), f"{timestamp}.".encode() + body, hashlib.sha256
+    ).hexdigest()
+    return any(hmac.compare_digest(expected, candidate) for candidate in candidates)
+
+
+async def receive_webhook(request: Request) -> Response:
+    body = await request.body()
+    if not _valid_signature(request.headers.get("x-nexusflow-signature", ""), body):
+        return JSONResponse({"error": "firma no válida"}, status_code=401)
+    event_id = request.headers.get("x-nexusflow-event-id", "")
+    async with _lock:
+        duplicate = event_id in _received
+        if not duplicate:
+            _received[event_id] = json.loads(body)
+    return JSONResponse({"ok": True, "duplicate": duplicate})
+
+
+async def list_received(_: Request) -> Response:
+    return JSONResponse({"count": len(_received), "items": list(_received.values())})
+
+
 app = Starlette(
     routes=[
         Route("/health", health),
         Route("/crm/customers/{cid}", customer),
         Route("/payments/charges", create_charge, methods=["POST"]),
         Route("/payments/charges", list_charges, methods=["GET"]),
+        Route("/webhooks/nexusflow", receive_webhook, methods=["POST"]),
+        Route("/webhooks/received", list_received, methods=["GET"]),
     ]
 )

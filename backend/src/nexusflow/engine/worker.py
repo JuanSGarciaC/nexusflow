@@ -27,11 +27,18 @@ from celery.signals import worker_process_shutdown
 from nexusflow.core.config import Settings
 from nexusflow.db.session import create_engine, create_session_factory
 from nexusflow.engine.celery_config import create_celery, egress_policy
-from nexusflow.engine.dispatch import PROCESS_STEP_TASK, SWEEP_TASK, CeleryDispatcher, Dispatcher
+from nexusflow.engine.dispatch import (
+    DELIVER_WEBHOOK_TASK,
+    PROCESS_STEP_TASK,
+    SWEEP_TASK,
+    CeleryDispatcher,
+    Dispatcher,
+)
 from nexusflow.engine.executors import CredentialResolver, ExecutorDeps
 from nexusflow.engine.runner import Engine
 from nexusflow.integrations.crypto import CredentialCipher
 from nexusflow.integrations.service import DbCredentialResolver
+from nexusflow.webhooks.delivery import WebhookDeliverer
 
 T = TypeVar("T")
 
@@ -50,6 +57,7 @@ class WorkerRuntime:
         self._dispatcher = dispatcher
         self._resolve_credential = resolve_credential
         self._engine: Engine | None = None
+        self.deliverer: WebhookDeliverer | None = None
         self._closers: list[Callable[[], Awaitable[None]]] = []
 
     async def _build(self) -> Engine:
@@ -57,9 +65,10 @@ class WorkerRuntime:
         http = httpx.AsyncClient(verify=True, follow_redirects=False, trust_env=False)
         self._closers = [http.aclose, db.dispose]
         sessions = create_session_factory(db)
-        resolver = self._resolve_credential or DbCredentialResolver(
-            sessions,
-            CredentialCipher(self.settings.credentials_encryption_keys.get_secret_value()),
+        cipher = CredentialCipher(self.settings.credentials_encryption_keys.get_secret_value())
+        resolver = self._resolve_credential or DbCredentialResolver(sessions, cipher)
+        self.deliverer = WebhookDeliverer(
+            sessions, self.settings, http, egress_policy(self.settings), cipher, self._dispatcher
         )
         return Engine(
             sessions,
@@ -78,6 +87,12 @@ class WorkerRuntime:
             self._engine = self.loop.run_until_complete(self._build())
         return self.loop.run_until_complete(operation(self._engine))
 
+    def run_deliverer(self, operation: Callable[[WebhookDeliverer], Awaitable[T]]) -> T:
+        if self._engine is None:
+            self._engine = self.loop.run_until_complete(self._build())
+        assert self.deliverer is not None  # noqa: S101  # creado en _build
+        return self.loop.run_until_complete(operation(self.deliverer))
+
     def close(self) -> None:
         for closer in self._closers:
             self.loop.run_until_complete(closer())
@@ -95,13 +110,20 @@ def register_tasks(app: Celery, runtime: Callable[[], WorkerRuntime]) -> None:
     def process_step(step_run_id: str) -> str:
         return runtime().run(lambda engine: engine.process_step(uuid.UUID(step_run_id)))
 
+    @app.task(name=DELIVER_WEBHOOK_TASK, soft_time_limit=120, time_limit=180)
+    def deliver_webhook(delivery_id: str) -> str:
+        return runtime().run_deliverer(lambda d: d.deliver(uuid.UUID(delivery_id)))
+
     @app.task(name=SWEEP_TASK, soft_time_limit=120, time_limit=180)
     def sweep() -> dict[str, int]:
         report = runtime().run(lambda engine: engine.sweep())
+        deliveries, recovered = runtime().run_deliverer(lambda d: d.sweep())
         return {
             "dispatched": report.dispatched,
             "recovered": report.recovered,
             "timed_out": report.timed_out,
+            "webhooks_dispatched": deliveries,
+            "webhooks_recovered": recovered,
         }
 
 

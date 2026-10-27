@@ -1,6 +1,6 @@
 # Modelo de datos
 
-> Refleja las migraciones aplicadas hasta la **Fase 5**. Cada fase añade sus tablas
+> Refleja las migraciones aplicadas hasta la **Fase 6**. Cada fase añade sus tablas
 > mediante una migración de Alembic; `alembic check` en CI garantiza que modelos y
 > migraciones coinciden.
 
@@ -16,6 +16,8 @@ erDiagram
     workflow_runs ||--|{ step_runs : "pasos"
     step_runs ||--|{ step_attempts : "intentos"
     users |o--o{ credentials : "crea"
+    workflows ||--o{ webhook_triggers : "entrada"
+    webhook_subscriptions ||--o{ webhook_deliveries : "outbox"
 
     users {
         uuid id PK
@@ -115,6 +117,29 @@ erDiagram
         varchar hint "…a1b2"
         timestamptz last_used_at
     }
+    webhook_triggers {
+        uuid id PK "parte de la URL pública"
+        uuid workflow_id FK
+        boolean is_active
+        text secret_encrypted
+        int rate_limit_per_minute
+    }
+    webhook_subscriptions {
+        uuid id PK
+        varchar url
+        varchar_array events
+        uuid workflow_id FK "NULL = todos"
+        text secret_encrypted
+    }
+    webhook_deliveries {
+        uuid id PK
+        uuid subscription_id FK
+        uuid event_id "estable entre reintentos"
+        varchar status "pending|delivering|retry_scheduled|delivered|dead"
+        jsonb payload
+        int attempt_count
+        timestamptz next_attempt_at
+    }
 ```
 
 ## Decisiones
@@ -138,6 +163,8 @@ erDiagram
 | Índice parcial `ix_step_runs_dispatch` | El barrido solo recorre pasos activos, no el historial completo. |
 | `step_attempts` separado de `step_runs` | Historial completo de cada intento sin sobrescribir el anterior. |
 | `credentials.secret_encrypted` sin columna en claro | El secreto solo existe cifrado; `key_fingerprint` permite saber qué filas faltan por rotar. |
+| `webhook_deliveries` como outbox | Se inserta en la misma transacción que el cambio de estado (hook `before_flush`). |
+| Deduplicación de entrada sin tabla propia | Reutiliza el índice único de idempotencia de `workflow_runs`. |
 | Convención de nombres de restricciones | Nombres deterministas (`uq_users_email`, `fk_refresh_tokens_user_id_users`), así las migraciones son reproducibles. |
 
 ## Tablas planificadas

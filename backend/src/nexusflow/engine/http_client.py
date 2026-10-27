@@ -165,7 +165,10 @@ async def send_request(
     json_body: Any,
     timeout_seconds: float,
     policy: EgressPolicy,
+    content: bytes | None = None,
 ) -> HttpResult:
+    """Envía la petición. `content` (bytes exactos) tiene prioridad sobre `json_body`:
+    se usa cuando hay que firmar el cuerpo tal cual viaja."""
     try:
         target = httpx.URL(url)
     except (httpx.InvalidURL, TypeError) as exc:
@@ -186,7 +189,10 @@ async def send_request(
             pinned,
             headers=request_headers,
             params=params or None,
-            json=json_body if method != "GET" and json_body is not None else None,
+            json=json_body
+            if content is None and method != "GET" and json_body is not None
+            else None,
+            content=content,
             extensions=extensions,
             timeout=httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, 10.0)),
         )
