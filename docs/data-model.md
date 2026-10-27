@@ -1,0 +1,62 @@
+# Modelo de datos
+
+> Refleja las migraciones aplicadas hasta la **Fase 2**. Cada fase añade sus tablas
+> mediante una migración de Alembic; `alembic check` en CI garantiza que modelos y
+> migraciones coinciden.
+
+```mermaid
+erDiagram
+    users ||--o{ refresh_tokens : "tiene"
+    users |o--o{ audit_log : "actor de"
+    refresh_tokens |o--o| refresh_tokens : "reemplazado por"
+
+    users {
+        uuid id PK
+        varchar email UK "minúsculas (CHECK)"
+        varchar password_hash "Argon2id"
+        varchar role "admin|editor|operator|viewer (CHECK)"
+        boolean is_active
+        timestamptz last_login_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    refresh_tokens {
+        uuid id PK
+        uuid user_id FK "ON DELETE CASCADE"
+        uuid family_id "índice"
+        varchar token_hash UK "SHA-256"
+        timestamptz created_at
+        timestamptz expires_at
+        timestamptz revoked_at
+        uuid replaced_by_id FK "ON DELETE SET NULL"
+    }
+    audit_log {
+        bigint id PK
+        timestamptz occurred_at "índice"
+        uuid actor_user_id FK "ON DELETE SET NULL"
+        varchar action "índice"
+        varchar resource_type
+        varchar resource_id
+        inet ip_address
+        varchar request_id
+        jsonb details
+    }
+```
+
+## Decisiones
+
+| Decisión | Motivo |
+|---|---|
+| Claves UUID generadas en la aplicación | El id se conoce antes del INSERT y no revela el volumen de registros. `audit_log` usa `bigint`: es solo de inserción, se ordena por id y nunca se expone para enumerar. |
+| `role` como `VARCHAR` + `CHECK` en lugar de `ENUM` nativo | Añadir un rol es una migración trivial; con `ENUM` habría que usar `ALTER TYPE`, que tiene restricciones dentro de transacciones. |
+| `email` en minúsculas garantizado por `CHECK` | La aplicación normaliza, pero la base de datos es la última línea de defensa contra duplicados como `Ana@` y `ana@`. |
+| Unicidad por restricción, no por consulta previa | Comprobar y luego insertar tiene una condición de carrera. Hay una prueba con 5 registros simultáneos. |
+| Solo el hash del refresh token | Una copia de la base de datos no permite secuestrar sesiones. |
+| `family_id` en refresh tokens | Permite revocar de una vez todos los tokens derivados de un mismo login. |
+| `audit_log` con `ON DELETE SET NULL` | El historial sobrevive a la eliminación de usuarios. |
+| `timestamptz` en todas las fechas | Nunca fechas sin zona horaria. |
+| Convención de nombres de restricciones | Nombres deterministas (`uq_users_email`, `fk_refresh_tokens_user_id_users`), así las migraciones son reproducibles. |
+
+## Tablas planificadas
+
+Ver [architecture.md §6](architecture.md#6-modelo-de-datos-planificado).

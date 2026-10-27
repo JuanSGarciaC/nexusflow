@@ -9,8 +9,9 @@ trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y 
 en segundo plano con reintentos, timeouts e idempotencia.
 
 > **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fase 1 (Fundaciones) completada.** Esta documentación describe solo lo que ya
-> existe y está probado. Lo pendiente aparece en la [hoja de ruta](#hoja-de-ruta).
+> **Fases 1 (Fundaciones) y 2 (Autenticación y RBAC) completadas.** Esta documentación
+> describe solo lo que ya existe y está probado. Lo pendiente aparece en la
+> [hoja de ruta](#hoja-de-ruta).
 
 ## Contenido
 
@@ -30,6 +31,7 @@ en segundo plano con reintentos, timeouts e idempotencia.
 | Área | Qué se ve en el código |
 |---|---|
 | Backend | FastAPI con application factory, Pydantic v2, SQLAlchemy 2 async, errores RFC 9457 |
+| Seguridad | Argon2id, JWT de vida corta, refresh tokens con rotación y detección de robo, RBAC por permisos, límites de uso, auditoría |
 | Datos | PostgreSQL como fuente de verdad, migraciones Alembic versionadas y comprobadas en CI |
 | Integración | (Fases 4-6) adaptadores HTTP, reintentos seguros, idempotencia, webhooks firmados |
 | Operación | Logs JSON con `request_id`, health checks *liveness* / *readiness*, Docker no-root |
@@ -56,9 +58,12 @@ Estructura del repositorio:
 nexusflow/
 ├─ backend/
 │  ├─ src/nexusflow/
-│  │  ├─ core/            # configuración, logging, errores, middleware
+│  │  ├─ core/            # configuración, logging, errores, middleware, límites de uso
 │  │  ├─ db/              # base declarativa, sesiones, registro de modelos
+│  │  ├─ auth/            # usuarios, contraseñas, tokens, permisos, endpoints
+│  │  ├─ audit/           # registro de auditoría (solo inserción)
 │  │  ├─ observability/   # health checks
+│  │  ├─ cli.py           # comando `nexusflow create-admin`
 │  │  └─ main.py          # application factory
 │  ├─ migrations/         # Alembic (async)
 │  ├─ tests/{unit,integration}/
@@ -84,6 +89,9 @@ docker compose up -d --build
 
 # 3. Comprobar
 curl http://127.0.0.1:8000/health/ready
+
+# 4. Crear el primer administrador (la contraseña se pide por teclado, sin eco)
+docker compose exec api nexusflow create-admin --email admin@example.com
 ```
 
 En Linux/macOS el primer paso es `cp .env.example .env`.
@@ -124,6 +132,7 @@ psql -U postgres -c "CREATE DATABASE nexusflow_test OWNER nexusflow;"
 # Alembic necesita la variable en el entorno del proceso
 $env:NEXUSFLOW_DATABASE_URL = "postgresql+asyncpg://nexusflow:tu-password@localhost:5432/nexusflow"
 uv run alembic upgrade head
+uv run nexusflow create-admin --email admin@example.com   # pide la contraseña
 
 uv run uvicorn nexusflow.main:app_factory --factory --reload
 ```
@@ -155,7 +164,12 @@ uv run pytest
 | `unit/test_config.py` | Fallo al arrancar sin secretos, esquemas de URL, reglas de producción, secretos ocultos en `repr` |
 | `unit/test_logging.py` | JSON estructurado, redacción de claves sensibles (también anidadas), logs de librerías en el mismo formato |
 | `unit/test_app.py` | `request_id` (generado, propagado y saneado), cabeceras de seguridad, RFC 9457, 500 sin filtrar detalles, CORS, docs desactivables |
+| `unit/test_auth_primitives.py` | Argon2id, JWT (expirado, otra clave, otra audiencia/emisor, `alg: none`, tipo incorrecto), matriz de permisos, política de contraseñas, *mass assignment* |
+| `unit/test_auth_api_without_services.py` | 401 sin token o con token malformado, login **falla cerrado** (503) si Redis cae, validación de IP del cliente |
 | `integration/test_readiness.py` | `/health/ready` con servicios reales y con Redis caído; migraciones *upgrade/downgrade*; modelos y migraciones sincronizados (`alembic check`) |
+| `integration/test_auth_flows.py` | Registro, login y `me`; atributos de la cookie; mismo error para email inexistente y contraseña errónea; rotación; **reutilización de refresh token revoca la familia**; logout; RBAC; cambio de rol efectivo al instante; desactivación corta access y refresh; límites de uso con `Retry-After`; auditoría sin contraseñas |
+| `integration/test_auth_concurrency.py` | Dos canjes simultáneos del mismo refresh token: exactamente uno gana. Cinco registros simultáneos del mismo email: exactamente uno se crea. |
+| `integration/test_cli.py` | `create-admin`: creación auditada, duplicados y contraseñas débiles |
 
 En CI se define `NEXUSFLOW_REQUIRE_INTEGRATION=1`. Si faltan los servicios, las pruebas
 de integración **fallan** en lugar de omitirse en silencio.
@@ -167,6 +181,28 @@ de integración **fallan** en lugar de omitirse en silencio.
 | GET | `/health/live` | El proceso responde. No consulta dependencias. |
 | GET | `/health/ready` | PostgreSQL y Redis accesibles. Devuelve `503` si alguno falla. |
 | GET | `/docs`, `/openapi.json` | OpenAPI 3.1. Se puede desactivar con `NEXUSFLOW_DOCS_ENABLED=false`. |
+| POST | `/api/v1/auth/register` | Crea una cuenta `viewer`. Se puede desactivar con `NEXUSFLOW_REGISTRATION_ENABLED=false`. |
+| POST | `/api/v1/auth/login` | Devuelve el access token (JWT, 15 min) y fija el refresh token en una cookie `httpOnly` |
+| POST | `/api/v1/auth/refresh` | Canjea la cookie por un access token nuevo y rota la cookie |
+| POST | `/api/v1/auth/logout` | Revoca la sesión (la familia de refresh tokens). Idempotente. |
+| GET | `/api/v1/users/me` | Usuario autenticado y sus permisos efectivos |
+| GET | `/api/v1/users` | Lista paginada (`limit` ≤ 100). Requiere `users:read`. |
+| PATCH | `/api/v1/users/{id}` | Cambia rol o estado. Requiere `users:manage`; no se permite sobre uno mismo. |
+
+### Roles y permisos
+
+Los endpoints exigen **permisos**, no roles. La matriz completa está en
+[`auth/permissions.py`](backend/src/nexusflow/auth/permissions.py):
+
+| Permiso | viewer | operator | editor | admin |
+|---|:-:|:-:|:-:|:-:|
+| `workflows:read`, `runs:read`, `metrics:read` | ✓ | ✓ | ✓ | ✓ |
+| `workflows:execute` | | ✓ | ✓ | ✓ |
+| `workflows:write`, `credentials:manage`, `webhooks:manage` | | | ✓ | ✓ |
+| `users:read`, `users:manage`, `audit:read` | | | | ✓ |
+
+El primer administrador solo se crea con el comando `nexusflow create-admin`: ningún
+endpoint permite a un usuario anónimo obtener privilegios.
 
 Todos los errores siguen [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457):
 
@@ -195,13 +231,42 @@ entorno: por ejemplo, un secreto de ejemplo con `NEXUSFLOW_ENV=production`.
 | `NEXUSFLOW_LOG_LEVEL` / `NEXUSFLOW_LOG_JSON` | No | `INFO` / `true` |
 | `NEXUSFLOW_CORS_ORIGINS` | No | Lista separada por comas. `*` está prohibido en producción. |
 | `NEXUSFLOW_DOCS_ENABLED` | No | Expone `/docs` y `/openapi.json` |
+| `NEXUSFLOW_ACCESS_TOKEN_TTL_MINUTES` | No | Vida del access token (15) |
+| `NEXUSFLOW_REFRESH_TOKEN_TTL_DAYS` | No | Vida del refresh token (7) |
+| `NEXUSFLOW_REGISTRATION_ENABLED` | No | Registro público (`true`) |
+| `NEXUSFLOW_COOKIE_SECURE` | No | Cookie solo por HTTPS (`true`; obligatorio en producción) |
+| `NEXUSFLOW_LOGIN_RATE_LIMIT_PER_IP` / `_PER_EMAIL` | No | 20 por minuto / 10 por 15 minutos |
+| `NEXUSFLOW_REGISTER_RATE_LIMIT_PER_IP` | No | 5 por hora |
 
 Plantillas: [`.env.example`](.env.example) (Docker Compose) y
 [`backend/.env.example`](backend/.env.example) (ejecución local).
 
 ## Seguridad
 
-Implementado en la Fase 1:
+Autenticación y autorización (Fase 2):
+
+- **Contraseñas** con Argon2id (12-128 caracteres, sin el usuario del email, no
+  repetitivas). El hash se ejecuta en un hilo para no bloquear el event loop. Si un email
+  no existe, se verifica igualmente contra un hash ficticio, de modo que la respuesta tarda
+  lo mismo y el error es idéntico: no se pueden enumerar cuentas.
+- **Access token** JWT HS256 de 15 minutos con `iss`, `aud`, `exp`, `nbf` y `type`
+  obligatorios y una lista explícita de algoritmos (bloquea `alg: none` y la confusión de
+  algoritmos). El rol **no** va en el token: se lee de la base de datos en cada petición,
+  así que un cambio de rol o una desactivación tienen efecto inmediato.
+- **Refresh token** opaco de 256 bits, guardado solo como SHA-256, en una cookie
+  `HttpOnly; Secure; SameSite=Strict` restringida a `/api/v1/auth`. Se rota en cada uso; si
+  reaparece un token ya rotado, se revoca toda la familia (detección de robo, RFC 9700).
+- **Autorización por permisos** en el backend. El registro público ignora cualquier
+  campo extra (`extra="forbid"`), así que nadie puede auto-asignarse un rol. Un
+  administrador no puede modificarse a sí mismo.
+- **Límites de uso** en Redis: por IP y por cuenta en el login, y por IP en el registro.
+  Responden `429` con `Retry-After`. Si Redis no responde, los endpoints de autenticación
+  **fallan cerrados** (503) en lugar de permitir fuerza bruta sin límite.
+- **Auditoría** en la misma transacción que el cambio: registro, login correcto o
+  fallido (con motivo, nunca la contraseña), logout, reutilización de tokens y cambios de
+  rol o estado. Incluye IP y `request_id`.
+
+Fundaciones (Fase 1):
 
 - **Secretos.** Solo por entorno, con tipo `SecretStr` (no aparecen en `repr` ni en
   volcados). Los `.env` están en `.gitignore` y gitleaks los vigila en CI.
@@ -220,16 +285,23 @@ Implementado en la Fase 1:
 - **Cadena de suministro.** `uv.lock` con hashes, `pip-audit` en CI y GitHub Actions
   fijadas por SHA de commit.
 
-Autenticación, RBAC, límites de uso, cifrado de credenciales y protección anti-SSRF
-llegan en las fases 2 y 5.
+El cifrado de credenciales de integraciones y la protección anti-SSRF llegan en la Fase 5.
+
+**Limitaciones conocidas (aceptadas y documentadas):**
+- No hay verificación de email ni recuperación de contraseña: requieren un servicio de
+  correo. Por eso el registro responde `409` a un email duplicado; con verificación por
+  correo se podría responder siempre igual.
+- No hay revocación inmediata de access tokens: se mitiga con su vida corta (15 min) y
+  con la consulta del estado del usuario en cada petición.
+- El límite de ventana fija permite hasta el doble del límite en el borde entre ventanas.
 
 ## Hoja de ruta
 
 | Fase | Contenido | Estado |
 |---|---|---|
 | 1 | Fundaciones: configuración, logging, errores, DB, health checks, Docker, CI | ✅ Completada |
-| 2 | Autenticación (Argon2, JWT + refresh con rotación), RBAC, auditoría | ⏳ Pendiente |
-| 3 | Definición de flujos: DSL, validación de grafo, versiones inmutables | ⏳ |
+| 2 | Autenticación (Argon2, JWT + refresh con rotación), RBAC, auditoría | ✅ Completada |
+| 3 | Definición de flujos: DSL, validación de grafo, versiones inmutables | ⏳ Pendiente |
 | 4 | Motor de ejecución con Celery: estados, reintentos, timeouts, idempotencia | ⏳ |
 | 5 | Integraciones: credenciales cifradas, cliente HTTP anti-SSRF, adaptadores | ⏳ |
 | 6 | Webhooks entrantes (HMAC) y salientes (outbox) | ⏳ |
@@ -252,6 +324,11 @@ Resumen. El razonamiento completo está en [docs/adr](docs/adr/).
   ([ADR-0003](docs/adr/0003-errores-y-observabilidad.md))
 - **uv + Ruff + mypy strict:** builds reproducibles con lockfile y calidad verificable
   en CI. ([ADR-0004](docs/adr/0004-herramientas.md))
+- **JWT corto + refresh opaco rotativo en cookie:** un XSS no puede robar la sesión
+  larga, y un refresh token robado se detecta en cuanto se reutiliza.
+  ([ADR-0005](docs/adr/0005-autenticacion.md))
+
+El modelo de datos está documentado en [docs/data-model.md](docs/data-model.md).
 
 ## Licencia
 

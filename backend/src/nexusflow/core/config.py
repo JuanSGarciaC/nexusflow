@@ -45,6 +45,22 @@ class Settings(BaseSettings):
         description="Clave para firmar tokens. Mínimo 32 caracteres aleatorios.",
     )
 
+    # --- Autenticación ---
+    access_token_ttl_minutes: int = Field(default=15, ge=1, le=60)
+    refresh_token_ttl_days: int = Field(default=7, ge=1, le=90)
+    jwt_issuer: str = "nexusflow"
+    jwt_audience: str = "nexusflow-api"
+    registration_enabled: bool = True
+    # Secure por defecto. Los navegadores aceptan cookies Secure en http://localhost.
+    cookie_secure: bool = True
+
+    # --- Límites de uso (por ventana fija) ---
+    login_rate_limit_per_ip: int = Field(default=20, ge=1, description="Intentos por minuto e IP")
+    login_rate_limit_per_email: int = Field(
+        default=10, ge=1, description="Intentos por 15 minutos y cuenta"
+    )
+    register_rate_limit_per_ip: int = Field(default=5, ge=1, description="Registros por hora e IP")
+
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
     docs_enabled: bool = True
     readiness_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
@@ -87,6 +103,8 @@ class Settings(BaseSettings):
             raise ValueError("secret_key contiene un valor de ejemplo; genera uno real")
         if "*" in self.cors_origins:
             raise ValueError("cors_origins no puede contener '*' en producción")
+        if not self.cookie_secure:
+            raise ValueError("cookie_secure debe ser true en producción")
         return self
 
     @property

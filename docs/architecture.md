@@ -58,15 +58,15 @@ api (routers, esquemas HTTP)  →  services (casos de uso)  →  repositories (S
 
 | Módulo | Estado | Contenido |
 |---|---|---|
-| `core` | ✅ | Configuración, logging, errores, middleware |
+| `core` | ✅ | Configuración, logging, errores, middleware, límites de uso |
 | `db` | ✅ | Base declarativa con convención de nombres, sesiones async |
 | `observability` | ✅ parcial | Health checks (métricas en la Fase 7) |
-| `auth` | Fase 2 | Usuarios, tokens, RBAC |
+| `auth` | ✅ | Usuarios, contraseñas, tokens, permisos, endpoints |
 | `workflows` | Fase 3 | DSL, validación, versiones |
 | `engine` | Fase 4 | Máquina de estados, orquestador, condiciones |
 | `integrations` | Fase 5 | Adaptadores, credenciales cifradas, cliente HTTP seguro |
 | `webhooks` | Fase 6 | Entrantes (HMAC) y salientes (outbox) |
-| `audit` | Fase 2-7 | Registro de acciones administrativas |
+| `audit` | ✅ escritura | Registro de acciones sensibles (la consulta llega en la Fase 7) |
 
 ## 4. Ciclo de una petición (implementado)
 
@@ -77,8 +77,35 @@ api (routers, esquemas HTTP)  →  services (casos de uso)  →  repositories (S
    - registra `http_request` con el método, la ruta, el status y `duration_ms`.
 2. CORS, solo si hay orígenes configurados.
 3. Router → dependencias → handler.
-4. Cualquier excepción se transforma en `application/problem+json` (RFC 9457). Los 500 se
+4. En rutas protegidas: `HTTPBearer` → validación del JWT → carga del usuario desde
+   PostgreSQL (rol y estado actuales) → comprobación del permiso exigido.
+5. Cualquier excepción se transforma en `application/problem+json` (RFC 9457). Los 500 se
    registran con traza en el log y devuelven al cliente un mensaje genérico.
+
+## 4.1 Sesión de usuario (implementado)
+
+```mermaid
+sequenceDiagram
+    participant U as Navegador
+    participant A as API
+    participant DB as PostgreSQL
+    U->>A: POST /auth/login (email, contraseña)
+    A->>DB: usuario + verificación Argon2id
+    A->>DB: INSERT refresh_token (hash, family_id)
+    A-->>U: access JWT (15 min) + Set-Cookie refresh (HttpOnly)
+    U->>A: GET /users/me (Bearer JWT)
+    A->>DB: SELECT usuario (rol y estado actuales)
+    A-->>U: 200
+    U->>A: POST /auth/refresh (cookie)
+    A->>DB: SELECT … FOR UPDATE token
+    alt token vigente
+        A->>DB: revoca el actual, inserta el nuevo (misma familia)
+        A-->>U: access nuevo + cookie nueva
+    else token ya rotado (reutilización)
+        A->>DB: revoca toda la familia + auditoría
+        A-->>U: 401
+    end
+```
 
 ## 5. Health checks
 
@@ -96,8 +123,7 @@ Las tablas se crean fase a fase mediante migraciones. Diseño aprobado:
 
 | Tabla | Fase | Restricciones clave |
 |---|---|---|
-| `users`, `refresh_tokens` | 2 | `email` único; tokens con hash y familia para detectar reutilización |
-| `audit_log` | 2 | Solo inserción |
+| `users`, `refresh_tokens`, `audit_log` | 2 ✅ | Ver [data-model.md](data-model.md) |
 | `workflows`, `workflow_versions` | 3 | `UNIQUE(workflow_id, version)`; inmutable tras publicar |
 | `triggers` | 3/6 | Secreto HMAC cifrado |
 | `workflow_runs` | 4 | `UNIQUE(workflow_id, idempotency_key)` |
