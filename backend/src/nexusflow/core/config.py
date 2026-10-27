@@ -77,6 +77,13 @@ class Settings(BaseSettings):
     # Hosts que pueden resolver a IPs privadas. Solo para desarrollo (p. ej. mock-partner).
     egress_allowed_private_hosts: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
+    # --- Credenciales de integraciones ---
+    # Claves Fernet separadas por comas. La primera cifra; todas descifran (rotación).
+    # Generar con: nexusflow generate-key
+    credentials_encryption_keys: SecretStr = Field(
+        description="Una o más claves Fernet (base64 urlsafe de 32 bytes), separadas por comas",
+    )
+
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
     docs_enabled: bool = True
     readiness_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
@@ -103,6 +110,24 @@ class Settings(BaseSettings):
     def _check_redis_url(cls, value: SecretStr) -> SecretStr:
         if not value.get_secret_value().startswith(("redis://", "rediss://")):
             raise ValueError("redis_url debe usar el esquema redis:// o rediss://")
+        return value
+
+    @field_validator("credentials_encryption_keys")
+    @classmethod
+    def _check_fernet_keys(cls, value: SecretStr) -> SecretStr:
+        from cryptography.fernet import Fernet
+
+        keys = [k.strip() for k in value.get_secret_value().split(",") if k.strip()]
+        if not keys:
+            raise ValueError("credentials_encryption_keys necesita al menos una clave")
+        for key in keys:
+            try:
+                Fernet(key.encode())
+            except (ValueError, TypeError) as exc:
+                raise ValueError(
+                    "credentials_encryption_keys contiene una clave Fernet no válida; "
+                    "genera una con 'nexusflow generate-key'"
+                ) from exc
         return value
 
     @field_validator("secret_key")

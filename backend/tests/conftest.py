@@ -7,6 +7,8 @@ import pytest
 from nexusflow.core.config import Settings
 
 TEST_SECRET = "test" * 12  # valor ficticio de baja entropía: no es un secreto real
+# Clave Fernet de pruebas: 32 bytes a cero codificados en base64 (no es un secreto real).
+TEST_FERNET_KEY = "A" * 43 + "="
 # URLs no enrutables para pruebas unitarias: nunca deben usarse para conectar.
 UNIT_DB_URL = "postgresql+asyncpg://unit:unit@127.0.0.1:1/unit"
 UNIT_REDIS_URL = "redis://127.0.0.1:1/0"
@@ -19,6 +21,7 @@ def make_settings(**overrides: object) -> Settings:
         "database_url": UNIT_DB_URL,
         "redis_url": UNIT_REDIS_URL,
         "secret_key": TEST_SECRET,
+        "credentials_encryption_keys": TEST_FERNET_KEY,
         "readiness_timeout_seconds": 0.5,
     }
     values.update(overrides)

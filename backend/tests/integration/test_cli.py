@@ -8,6 +8,7 @@ import pytest
 
 from nexusflow.cli import create_admin
 from nexusflow.core.config import get_settings
+from tests.conftest import TEST_FERNET_KEY
 from tests.integration.conftest import STRONG_PASSWORD, db_url, fetch_all, redis_url
 
 pytestmark = pytest.mark.integration
@@ -18,6 +19,7 @@ def _cli_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NEXUSFLOW_DATABASE_URL", db_url())
     monkeypatch.setenv("NEXUSFLOW_REDIS_URL", redis_url())
     monkeypatch.setenv("NEXUSFLOW_SECRET_KEY", "cli" * 12)
+    monkeypatch.setenv("NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS", TEST_FERNET_KEY)
     get_settings.cache_clear()
 
 

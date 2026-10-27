@@ -64,7 +64,7 @@ api (routers, esquemas HTTP)  →  services (casos de uso)  →  repositories (S
 | `auth` | ✅ | Usuarios, contraseñas, tokens, permisos, endpoints |
 | `workflows` | ✅ | DSL, validación del grafo, versiones inmutables, endpoints |
 | `engine` | ✅ | Máquinas de estado, runner (reclamo/lease), barrido, cliente HTTP anti-SSRF, Celery |
-| `integrations` | Fase 5 | Credenciales cifradas, adaptadores |
+| `integrations` | ✅ | Credenciales cifradas (Fernet), adaptadores de autenticación, resolución en el worker |
 | `webhooks` | Fase 6 | Entrantes (HMAC) y salientes (outbox) |
 | `audit` | ✅ escritura | Registro de acciones sensibles (la consulta llega en la Fase 7) |
 
@@ -123,9 +123,8 @@ Las tablas se crean fase a fase mediante migraciones. Diseño aprobado:
 
 | Tabla | Fase | Restricciones clave |
 |---|---|---|
-| `users`, `refresh_tokens`, `audit_log`, `workflows`, `workflow_versions`, `workflow_runs`, `step_runs`, `step_attempts` | 2-4 ✅ | Ver [data-model.md](data-model.md) |
+| `users`, `refresh_tokens`, `audit_log`, `workflows`, `workflow_versions`, `workflow_runs`, `step_runs`, `step_attempts`, `credentials` | 2-5 ✅ | Ver [data-model.md](data-model.md) |
 | `triggers` | 3/6 | Secreto HMAC cifrado |
-| `credentials` | 5 | Secreto cifrado (Fernet / MultiFernet); nunca se serializa |
 | `inbound_webhook_events` | 6 | `UNIQUE(trigger_id, event_key)`: deduplicación y anti-replay |
 | `webhook_subscriptions`, `webhook_deliveries` | 6 | Outbox con índice parcial sobre las pendientes |
 

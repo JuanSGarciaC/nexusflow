@@ -28,8 +28,18 @@ from nexusflow.workflows.dsl import (
 )
 from nexusflow.workflows.expressions import ExpressionError, evaluate, render
 
-# Recibe el nombre de una credencial y devuelve las cabeceras que hay que añadir.
-CredentialResolver = Callable[[str], Awaitable[dict[str, str]]]
+REDACTED = "[REDACTED]"
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedCredential:
+    headers: dict[str, str]
+    # Valores secretos que no deben aparecer en la salida guardada del paso.
+    secret_values: list[str]
+
+
+# (nombre de la credencial, host de destino) → cabeceras. Rechaza hosts no permitidos.
+CredentialResolver = Callable[[str, str], Awaitable[ResolvedCredential]]
 
 
 @dataclass
@@ -100,6 +110,22 @@ def _ensure_size(output: Any, limit: int) -> Any:
     return output
 
 
+def _redact(value: Any, secrets: list[str]) -> Any:
+    """Si la API externa devuelve el secreto (p. ej. un endpoint de eco), no se guarda."""
+    if not secrets:
+        return value
+    if isinstance(value, str):
+        for secret in secrets:
+            if secret:
+                value = value.replace(secret, REDACTED)
+        return value
+    if isinstance(value, dict):
+        return {k: _redact(v, secrets) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact(v, secrets) for v in value]
+    return value
+
+
 def _snippet(body: Any) -> str:
     text = body if isinstance(body, str) else json.dumps(body, default=str, ensure_ascii=False)
     return text[:300]
@@ -115,13 +141,22 @@ async def _http(step: HttpRequestStep, ctx: ExecutionContext, deps: ExecutorDeps
     if not isinstance(url, str):
         raise StepError(FailureKind.PERMANENT, "template_error", "La URL debe ser texto")
 
+    secrets: list[str] = []
     if config.credential:
         if deps.resolve_credential is None:
             raise StepError(
                 FailureKind.PERMANENT, "credential_unavailable", "No hay almacén de credenciales"
             )
-        # Las cabeceras de la credencial se añaden al final: el flujo no puede sobrescribirlas.
-        headers.update(await deps.resolve_credential(config.credential))
+        try:
+            host = httpx.URL(url).host
+        except (httpx.InvalidURL, TypeError) as exc:
+            raise StepError(FailureKind.PERMANENT, "invalid_url", "La URL no es válida") from exc
+        resolved = await deps.resolve_credential(config.credential, host)
+        # Se añaden al final, sin distinguir mayúsculas: el flujo no puede sobrescribirlas.
+        overridden = {k.lower() for k in resolved.headers}
+        headers = {k: v for k, v in headers.items() if k.lower() not in overridden}
+        headers.update(resolved.headers)
+        secrets = resolved.secret_values
 
     if step.effective_side_effect != SideEffect.NONE:
         # Misma clave en todos los reintentos: el destino puede detectar duplicados.
@@ -144,15 +179,20 @@ async def _http(step: HttpRequestStep, ctx: ExecutionContext, deps: ExecutorDeps
         ) from exc
 
     failure = classify_status(result.status_code, config.success_status)
+    body_out = _redact(result.body, secrets)
     if failure is not None:
         raise StepError(
             failure,
             f"http_{result.status_code}",
-            f"Respuesta {result.status_code}: {_snippet(result.body)}",
+            f"Respuesta {result.status_code}: {_snippet(body_out)}",
             http_status=result.status_code,
             retry_after_seconds=parse_retry_after(result.headers.get("retry-after")),
         )
-    output = {"status_code": result.status_code, "headers": result.headers, "body": result.body}
+    output = {
+        "status_code": result.status_code,
+        "headers": _redact(result.headers, secrets),
+        "body": body_out,
+    }
     return StepSuccess(_ensure_size(output, deps.max_output_bytes), step.next)
 
 

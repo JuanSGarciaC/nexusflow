@@ -25,6 +25,8 @@ from nexusflow.engine.executors import CredentialResolver, ExecutorDeps
 from nexusflow.engine.models import StepAttempt, StepRun, WorkflowRun
 from nexusflow.engine.runner import Engine
 from nexusflow.engine.schemas import RunCreate
+from nexusflow.integrations.crypto import CredentialCipher
+from nexusflow.integrations.service import DbCredentialResolver
 from nexusflow.workflows import service as workflows
 from nexusflow.workflows.dsl import WorkflowDefinition
 from nexusflow.workflows.schemas import WorkflowCreate
@@ -109,6 +111,11 @@ class Harness:
             )
             return list(rows)
 
+    async def fetch(self, statement: str, **params: Any) -> list[dict[str, Any]]:
+        async with self.sessions() as s:
+            result = await s.execute(text(statement), params)
+            return [dict(row._mapping) for row in result]
+
     async def sql(self, statement: str, **params: Any) -> None:
         async with self.sessions() as s:
             await s.execute(text(statement), params)
@@ -121,6 +128,11 @@ async def engine_harness(
 ) -> AsyncIterator[Harness]:
     db = create_async_engine(settings.database_url.get_secret_value(), pool_size=5)
     sessions = async_sessionmaker(db, expire_on_commit=False)
+    if resolve_credential is None:
+        # Igual que en el worker real: credenciales cifradas leídas de PostgreSQL.
+        resolve_credential = DbCredentialResolver(
+            sessions, CredentialCipher(settings.credentials_encryption_keys.get_secret_value())
+        )
     dispatcher = RecordingDispatcher()
     async with httpx.AsyncClient(trust_env=False) as http, sessions() as s:
         user = User(

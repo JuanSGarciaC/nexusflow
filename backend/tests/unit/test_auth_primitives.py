@@ -87,7 +87,7 @@ def test_alg_none_rejected() -> None:
             "nbf": now,
             "exp": now + timedelta(minutes=5),
         },
-        key=None,
+        key="",  # el algoritmo "none" exige clave vacía
         algorithm="none",
     )
     with pytest.raises(UnauthorizedError):
