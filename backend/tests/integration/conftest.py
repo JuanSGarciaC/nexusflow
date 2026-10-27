@@ -102,8 +102,8 @@ def _clean_state() -> None:
     async def _truncate(session: AsyncSession) -> None:
         await session.execute(
             text(
-                "TRUNCATE audit_log, refresh_tokens, step_attempts, step_runs, workflow_runs, "
-                "workflow_versions, workflows, users "
+                "TRUNCATE audit_log, refresh_tokens, credentials, step_attempts, step_runs, "
+                "workflow_runs, workflow_versions, workflows, users "
                 "RESTART IDENTITY CASCADE"
             )
         )

@@ -1,6 +1,8 @@
 """Comandos de administración.
 
     nexusflow create-admin --email admin@empresa.com
+    nexusflow generate-key           # clave Fernet para NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS
+    nexusflow rotate-credentials     # vuelve a cifrar todo con la primera clave
 
 El registro público solo crea usuarios `viewer`. El primer administrador se crea con este
 comando, que requiere acceso al servidor: no existe ningún endpoint que permita a un
@@ -30,6 +32,8 @@ from nexusflow.auth.schemas import RegisterRequest
 from nexusflow.core.config import get_settings
 from nexusflow.core.logging import configure_logging
 from nexusflow.db.session import create_engine, create_session_factory
+from nexusflow.integrations.crypto import CredentialCipher, generate_key
+from nexusflow.integrations.service import rotate_all
 
 
 def _read_password() -> str:
@@ -82,16 +86,37 @@ async def create_admin(email: str, password: str) -> int:
         await engine.dispose()
 
 
+async def rotate_credentials() -> int:
+    settings = get_settings()
+    cipher = CredentialCipher(settings.credentials_encryption_keys.get_secret_value())
+    engine = create_engine(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            count = await rotate_all(session, cipher)
+    finally:
+        await engine.dispose()
+    print(f"Credenciales recifradas con la clave {cipher.primary_fingerprint}: {count}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="nexusflow", description="Administración de NexusFlow")
     sub = parser.add_subparsers(dest="command", required=True)
     admin = sub.add_parser("create-admin", help="Crea un usuario administrador")
     admin.add_argument("--email", required=True)
+    sub.add_parser("generate-key", help="Genera una clave Fernet para cifrar credenciales")
+    sub.add_parser("rotate-credentials", help="Recifra las credenciales con la clave principal")
     args = parser.parse_args(argv)
+
+    if args.command == "generate-key":
+        print(generate_key())  # no necesita configuración ni base de datos
+        return 0
 
     configure_logging("WARNING", json_output=False)
     if args.command == "create-admin":
         return asyncio.run(create_admin(args.email, _read_password()))
+    if args.command == "rotate-credentials":
+        return asyncio.run(rotate_credentials())
     return 1  # pragma: no cover - argparse ya valida el comando
 
 

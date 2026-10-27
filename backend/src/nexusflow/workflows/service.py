@@ -72,6 +72,41 @@ def issues_for(version: WorkflowVersion) -> list[Issue]:
     return validate_definition(parse_stored(version.definition))
 
 
+def referenced_credentials(definition: WorkflowDefinition) -> dict[str, int]:
+    """Nombre de credencial → índice del primer paso que la usa."""
+    found: dict[str, int] = {}
+    for index, step in enumerate(definition.steps):
+        credential = getattr(getattr(step, "config", None), "credential", None)
+        if credential and credential not in found:
+            found[credential] = index
+    return found
+
+
+async def credential_issues(session: AsyncSession, definition: WorkflowDefinition) -> list[Issue]:
+    """Credenciales referenciadas que no existen (requiere base de datos)."""
+    from nexusflow.integrations.models import Credential
+
+    wanted = referenced_credentials(definition)
+    if not wanted:
+        return []
+    rows = await session.scalars(select(Credential.name).where(Credential.name.in_(wanted)))
+    existing = set(rows)
+    return [
+        Issue(
+            "unknown_credential",
+            f"La credencial '{name}' no existe",
+            f"steps[{index}].config.credential",
+        )
+        for name, index in wanted.items()
+        if name not in existing
+    ]
+
+
+async def all_issues(session: AsyncSession, version: WorkflowVersion) -> list[Issue]:
+    definition = parse_stored(version.definition)
+    return validate_definition(definition) + await credential_issues(session, definition)
+
+
 # ------------------------------------------------------------------ lectura
 
 
@@ -374,7 +409,7 @@ async def publish(
             "El borrador cambió desde que lo revisaste. Revisa la última revisión "
             "antes de publicar."
         )
-    issues = issues_for(draft)
+    issues = await all_issues(session, draft)
     if issues:
         await session.rollback()
         raise InvalidDefinitionError(issues)

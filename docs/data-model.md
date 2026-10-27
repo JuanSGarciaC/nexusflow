@@ -1,6 +1,6 @@
 # Modelo de datos
 
-> Refleja las migraciones aplicadas hasta la **Fase 4**. Cada fase añade sus tablas
+> Refleja las migraciones aplicadas hasta la **Fase 5**. Cada fase añade sus tablas
 > mediante una migración de Alembic; `alembic check` en CI garantiza que modelos y
 > migraciones coinciden.
 
@@ -15,6 +15,7 @@ erDiagram
     workflow_versions ||--o{ workflow_runs : "versión ejecutada"
     workflow_runs ||--|{ step_runs : "pasos"
     step_runs ||--|{ step_attempts : "intentos"
+    users |o--o{ credentials : "crea"
 
     users {
         uuid id PK
@@ -104,6 +105,16 @@ erDiagram
         int http_status
         int duration_ms
     }
+    credentials {
+        uuid id PK
+        varchar name UK
+        varchar type "bearer_token|api_key_header|basic_auth"
+        text_array allowed_hosts
+        text secret_encrypted "Fernet, vinculado a id+name"
+        varchar key_fingerprint "clave con la que se cifró"
+        varchar hint "…a1b2"
+        timestamptz last_used_at
+    }
 ```
 
 ## Decisiones
@@ -126,6 +137,7 @@ erDiagram
 | `version_id` con `RESTRICT` | Cada ejecución apunta a la versión exacta (inmutable) que ejecutó. |
 | Índice parcial `ix_step_runs_dispatch` | El barrido solo recorre pasos activos, no el historial completo. |
 | `step_attempts` separado de `step_runs` | Historial completo de cada intento sin sobrescribir el anterior. |
+| `credentials.secret_encrypted` sin columna en claro | El secreto solo existe cifrado; `key_fingerprint` permite saber qué filas faltan por rotar. |
 | Convención de nombres de restricciones | Nombres deterministas (`uq_users_email`, `fk_refresh_tokens_user_id_users`), así las migraciones son reproducibles. |
 
 ## Tablas planificadas

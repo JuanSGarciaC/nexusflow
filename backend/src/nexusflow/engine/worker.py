@@ -30,6 +30,8 @@ from nexusflow.engine.celery_config import create_celery, egress_policy
 from nexusflow.engine.dispatch import PROCESS_STEP_TASK, SWEEP_TASK, CeleryDispatcher, Dispatcher
 from nexusflow.engine.executors import CredentialResolver, ExecutorDeps
 from nexusflow.engine.runner import Engine
+from nexusflow.integrations.crypto import CredentialCipher
+from nexusflow.integrations.service import DbCredentialResolver
 
 T = TypeVar("T")
 
@@ -54,15 +56,20 @@ class WorkerRuntime:
         db = create_engine(self.settings)
         http = httpx.AsyncClient(verify=True, follow_redirects=False, trust_env=False)
         self._closers = [http.aclose, db.dispose]
+        sessions = create_session_factory(db)
+        resolver = self._resolve_credential or DbCredentialResolver(
+            sessions,
+            CredentialCipher(self.settings.credentials_encryption_keys.get_secret_value()),
+        )
         return Engine(
-            create_session_factory(db),
+            sessions,
             self.settings,
             self._dispatcher,
             ExecutorDeps(
                 http=http,
                 egress=egress_policy(self.settings),
                 max_output_bytes=self.settings.step_output_max_bytes,
-                resolve_credential=self._resolve_credential,
+                resolve_credential=resolver,
             ),
         )
 

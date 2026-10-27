@@ -13,6 +13,7 @@ x-backend-env: &backend-env
   NEXUSFLOW_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-nexusflow}:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}@postgres:5432/${POSTGRES_DB:-nexusflow}
   NEXUSFLOW_REDIS_URL: redis://:${REDIS_PASSWORD:?Define REDIS_PASSWORD en .env}@redis:6379/0
   NEXUSFLOW_SECRET_KEY: ${NEXUSFLOW_SECRET_KEY:?Define NEXUSFLOW_SECRET_KEY en .env}
+  NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS: ${NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS:?Define NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS en .env}
   NEXUSFLOW_CORS_ORIGINS: ${NEXUSFLOW_CORS_ORIGINS:-}
   NEXUSFLOW_DOCS_ENABLED: ${NEXUSFLOW_DOCS_ENABLED:-true}
   NEXUSFLOW_ACCESS_TOKEN_TTL_MINUTES: ${NEXUSFLOW_ACCESS_TOKEN_TTL_MINUTES:-15}
@@ -105,6 +106,21 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  # API externa simulada para demos y CI (perfil "demo"; no forma parte del producto).
+  # Para que los flujos puedan llamarla por http dentro de la red de compose, en .env:
+  #   NEXUSFLOW_EGRESS_ALLOW_HTTP=true
+  #   NEXUSFLOW_EGRESS_ALLOWED_PRIVATE_HOSTS=mock-partner
+  mock-partner:
+    profiles: ["demo"]
+    build:
+      context: ./mock-partner
+    environment:
+      MOCK_PARTNER_CRM_TOKEN: ${MOCK_PARTNER_CRM_TOKEN:-}
+      MOCK_PARTNER_PAYMENTS_KEY: ${MOCK_PARTNER_PAYMENTS_KEY:-}
+    ports:
+      - "127.0.0.1:${MOCK_PARTNER_PORT:-8080}:8080"
     restart: unless-stopped
 
 volumes:

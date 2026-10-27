@@ -9,8 +9,8 @@ trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y 
 en segundo plano con reintentos, timeouts e idempotencia.
 
 > **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fases 1 a 4 completadas** (fundaciones, autenticación y RBAC, definición de flujos,
-> motor de ejecución).
+> **Fases 1 a 5 completadas** (fundaciones, autenticación y RBAC, definición de flujos,
+> motor de ejecución, credenciales cifradas e integraciones).
 > Esta documentación describe solo lo que ya existe y está probado. Lo pendiente aparece en la
 > [hoja de ruta](#hoja-de-ruta).
 
@@ -68,12 +68,15 @@ nexusflow/
 │  │  ├─ audit/           # registro de auditoría (solo inserción)
 │  │  ├─ workflows/       # DSL, validación del grafo, versiones, endpoints
 │  │  ├─ engine/          # ejecuciones, runner, cliente HTTP seguro, Celery
+│  │  ├─ integrations/    # credenciales cifradas y adaptadores de autenticación
 │  │  ├─ observability/   # health checks
 │  │  ├─ cli.py           # comando `nexusflow create-admin`
 │  │  └─ main.py          # application factory
 │  ├─ migrations/         # Alembic (async)
 │  ├─ tests/{unit,integration}/
 │  ├─ Dockerfile · pyproject.toml · uv.lock
+├─ mock-partner/          # API externa simulada (demos y CI; no es parte del producto)
+├─ scripts/               # utilidades de CI
 ├─ docs/                  # arquitectura y ADR
 ├─ .github/workflows/ci.yml
 ├─ docker-compose.yml · .env.example
@@ -101,6 +104,24 @@ docker compose exec api nexusflow create-admin --email admin@example.com
 ```
 
 En Linux/macOS el primer paso es `cp .env.example .env`.
+
+`NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS` necesita una clave Fernet:
+`python -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"`.
+
+**Demo con API externa simulada.** El perfil `demo` añade `mock-partner`: un CRM con
+token Bearer y una pasarela de pagos idempotente, con fallos inyectables. En `.env`,
+rellena `MOCK_PARTNER_*` y permite el acceso por http dentro de la red de compose
+(**solo en desarrollo**):
+
+```powershell
+# .env: NEXUSFLOW_EGRESS_ALLOW_HTTP=true  y  NEXUSFLOW_EGRESS_ALLOWED_PRIVATE_HOSTS=mock-partner
+docker compose --profile demo up -d --build
+```
+
+[`scripts/ci_payment_flow.py`](scripts/ci_payment_flow.py) es un ejemplo completo: busca
+un cliente con un token Bearer, comprueba si es VIP y cobra. La pasarela falla dos veces
+con 503, el motor reintenta con la misma `Idempotency-Key` y la pasarela registra **un
+solo** cargo.
 
 - Documentación interactiva: http://127.0.0.1:8000/docs
 - Logs: `docker compose logs -f api`
@@ -186,6 +207,8 @@ uv run pytest
 | `integration/test_engine.py` | Contra una API externa real local: camino feliz, reintentos con historial, `Retry-After`, **timeout de un POST → revisión sin reintento**, PUT reintentado con la misma `Idempotency-Key`, **mensaje duplicado → una sola llamada**, SSRF, límite de respuesta, recuperación de workers caídos, mensajes perdidos, plazos, cancelación, esperas, resolución manual, creación idempotente concurrente |
 | `integration/test_runs_api.py` | Permisos, `202`/`200` por idempotencia, `409` con otra entrada, validación de la entrada, cancelación |
 | `integration/test_celery_worker.py` | **API → Redis → worker de Celery real → PostgreSQL → API externa**, con paso `delay` |
+| `unit/test_credentials_units.py` | Cifrado con vinculación a la fila, manipulación detectada, rotación de claves, adaptadores, hosts válidos, redacción |
+| `integration/test_credentials.py` | Secreto de solo escritura (ni en respuestas, ni en la tabla en claro, ni en la auditoría), permisos, `unknown_credential` al publicar, borrado bloqueado si está en uso, **inyección y redacción en el motor**, **host no permitido**, **cifrado intercambiado entre filas**, rotación |
 | `integration/test_workflows_api.py` | Ciclo de vida borrador → publicación → nueva versión, concurrencia optimista (4 guardados simultáneos: 1 gana), **inmutabilidad en la base de datos**, archivo, búsqueda literal, límite de tamaño (413) |
 
 En CI se define `NEXUSFLOW_REQUIRE_INTEGRATION=1`. Si faltan los servicios, las pruebas
@@ -250,6 +273,19 @@ Estados de una ejecución: `pending → running → succeeded | failed | cancell
 con `needs_review` cuando un paso no idempotente tiene un resultado desconocido. Ver
 [ADR-0007](docs/adr/0007-motor-de-ejecucion.md).
 
+### Credenciales
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/v1/credentials` | Crea una credencial: `bearer_token`, `api_key_header` o `basic_auth`, con `allowed_hosts` |
+| GET | `/api/v1/credentials[/{id}]` | Metadatos y pista (`…a1b2`). **Nunca** el secreto. |
+| PATCH | `/api/v1/credentials/{id}` | Descripción y hosts permitidos |
+| PUT | `/api/v1/credentials/{id}/secret` | Reemplaza el secreto |
+| DELETE | `/api/v1/credentials/{id}` | `409` si algún flujo activo la usa |
+
+Todas requieren `credentials:manage` (editor o admin). Un paso la usa con
+`"credential": "<nombre>"`. Ver [ADR-0008](docs/adr/0008-credenciales.md).
+
 Todos los errores siguen [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457):
 
 ```json
@@ -273,6 +309,7 @@ entorno: por ejemplo, un secreto de ejemplo con `NEXUSFLOW_ENV=production`.
 | `NEXUSFLOW_DATABASE_URL` | Sí | `postgresql+asyncpg://...` |
 | `NEXUSFLOW_REDIS_URL` | Sí | `redis://` o `rediss://` |
 | `NEXUSFLOW_SECRET_KEY` | Sí | ≥ 32 caracteres aleatorios |
+| `NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS` | Sí | Clave(s) Fernet, separadas por comas; la primera cifra (`nexusflow generate-key`) |
 | `NEXUSFLOW_ENV` | No | `development` (por defecto), `test`, `production` |
 | `NEXUSFLOW_LOG_LEVEL` / `NEXUSFLOW_LOG_JSON` | No | `INFO` / `true` |
 | `NEXUSFLOW_CORS_ORIGINS` | No | Lista separada por comas. `*` está prohibido en producción. |
@@ -348,7 +385,13 @@ Motor de ejecución (Fase 4):
 - **Sin ejecuciones eternas:** timeout por paso, plazo máximo por ejecución, lease frente
   a workers caídos.
 
-El cifrado de credenciales de integraciones llega en la Fase 5.
+Credenciales (Fase 5):
+
+- **Cifradas** con Fernet (autenticado) y **vinculadas a su fila**. Rotación de claves
+  con `MultiFernet` y `nexusflow rotate-credentials`.
+- **Solo escritura** en la API. Se descifran únicamente en el worker.
+- **Hosts permitidos** por credencial (anti-exfiltración), cabeceras no sobrescribibles y
+  **redacción** si la API externa devuelve el secreto.
 
 **Limitaciones conocidas (aceptadas y documentadas):**
 - No hay verificación de email ni recuperación de contraseña: requieren un servicio de
@@ -366,8 +409,8 @@ El cifrado de credenciales de integraciones llega en la Fase 5.
 | 2 | Autenticación (Argon2, JWT + refresh con rotación), RBAC, auditoría | ✅ Completada |
 | 3 | Definición de flujos: DSL, validación de grafo, versiones inmutables | ✅ Completada |
 | 4 | Motor de ejecución con Celery, cliente HTTP anti-SSRF, reintentos, timeouts, idempotencia | ✅ Completada |
-| 5 | Integraciones: credenciales cifradas, adaptadores, API externa simulada | ⏳ Pendiente |
-| 6 | Webhooks entrantes (HMAC) y salientes (outbox) | ⏳ |
+| 5 | Integraciones: credenciales cifradas, adaptadores, API externa simulada | ✅ Completada |
+| 6 | Webhooks entrantes (HMAC) y salientes (outbox) | ⏳ Pendiente |
 | 7 | Métricas y auditoría consultable | ⏳ |
 | 8 | Frontend React + TypeScript + Mantine | ⏳ |
 | 9 | E2E con Playwright, datos de demostración y guía de despliegue | ⏳ |
@@ -397,6 +440,9 @@ Resumen. El razonamiento completo está en [docs/adr](docs/adr/).
   los workers caídos se recuperan y un resultado desconocido en un paso no idempotente
   se para para revisión en lugar de arriesgar un cobro doble.
   ([ADR-0007](docs/adr/0007-motor-de-ejecucion.md))
+- **Credenciales cifradas, de solo escritura y vinculadas a hosts:** un editor puede usar
+  el token del CRM, pero no verlo ni enviarlo a otro servidor.
+  ([ADR-0008](docs/adr/0008-credenciales.md))
 
 El modelo de datos está documentado en [docs/data-model.md](docs/data-model.md).
 

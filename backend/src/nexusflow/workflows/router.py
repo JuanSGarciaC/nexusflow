@@ -6,6 +6,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from nexusflow.auth.dependencies import ContextDep, SessionDep, require_permission
 from nexusflow.auth.models import User
@@ -50,11 +51,12 @@ def _summary(version: WorkflowVersion) -> VersionSummary:
     )
 
 
-def _detail(version: WorkflowVersion) -> VersionDetail:
+async def _detail(session: AsyncSession, version: WorkflowVersion) -> VersionDetail:
+    issues = await service.all_issues(session, version)
     return VersionDetail(
         **_summary(version).model_dump(),
         definition=service.parse_stored(version.definition),
-        issues=[ValidationIssue(**i.as_dict()) for i in service.issues_for(version)],
+        issues=[ValidationIssue(**i.as_dict()) for i in issues],
     )
 
 
@@ -73,7 +75,7 @@ def _workflow_summary(
     )
 
 
-def _workflow_detail(state: service.WorkflowState) -> WorkflowDetail:
+async def _workflow_detail(session: AsyncSession, state: service.WorkflowState) -> WorkflowDetail:
     base = _workflow_summary(
         state.workflow,
         state.published.version if state.published else None,
@@ -82,8 +84,8 @@ def _workflow_detail(state: service.WorkflowState) -> WorkflowDetail:
     return WorkflowDetail(
         **base.model_dump(),
         created_by=state.workflow.created_by,
-        draft=_detail(state.draft) if state.draft else None,
-        published=_detail(state.published) if state.published else None,
+        draft=await _detail(session, state.draft) if state.draft else None,
+        published=await _detail(session, state.published) if state.published else None,
     )
 
 
@@ -92,8 +94,9 @@ def _workflow_detail(state: service.WorkflowState) -> WorkflowDetail:
     response_model=ValidateResponse,
     summary="Validar una definición sin guardarla",
 )
-async def validate(data: ValidateRequest, _: Reader) -> ValidateResponse:
+async def validate(data: ValidateRequest, session: SessionDep, _: Reader) -> ValidateResponse:
     issues = validate_definition(data.definition)
+    issues += await service.credential_issues(session, data.definition)
     return ValidateResponse(
         valid=not issues, issues=[ValidationIssue(**i.as_dict()) for i in issues]
     )
@@ -110,7 +113,7 @@ async def create(
     data: WorkflowCreate, session: SessionDep, context: ContextDep, actor: Writer
 ) -> WorkflowDetail:
     state = await service.create_workflow(session, actor, data, context)
-    return _workflow_detail(await service.get_state(session, state.workflow.id))
+    return await _workflow_detail(session, await service.get_state(session, state.workflow.id))
 
 
 @router.get("", response_model=WorkflowPage, summary="Listar flujos")
@@ -140,7 +143,7 @@ async def list_workflows(
     responses={404: {"description": "No existe", **_PROBLEM}},
 )
 async def get_workflow(workflow_id: uuid.UUID, session: SessionDep, _: Reader) -> WorkflowDetail:
-    return _workflow_detail(await service.get_state(session, workflow_id))
+    return await _workflow_detail(session, await service.get_state(session, workflow_id))
 
 
 @router.patch(
@@ -156,7 +159,7 @@ async def update_workflow(
     actor: Writer,
 ) -> WorkflowDetail:
     await service.update_workflow(session, actor, workflow_id, data, context)
-    return _workflow_detail(await service.get_state(session, workflow_id))
+    return await _workflow_detail(session, await service.get_state(session, workflow_id))
 
 
 @router.put(
@@ -179,7 +182,7 @@ async def save_draft(
     draft = await service.save_draft(
         session, actor, workflow_id, data.definition, data.expected_revision, context
     )
-    return _detail(draft)
+    return await _detail(session, draft)
 
 
 @router.post(
@@ -199,7 +202,7 @@ async def publish(
     actor: Writer,
 ) -> VersionDetail:
     version = await service.publish(session, actor, workflow_id, data.expected_revision, context)
-    return _detail(version)
+    return await _detail(session, version)
 
 
 @router.get(
@@ -224,4 +227,4 @@ async def get_version(
     session: SessionDep,
     _: Reader,
 ) -> VersionDetail:
-    return _detail(await service.get_version(session, workflow_id, version))
+    return await _detail(session, await service.get_version(session, workflow_id, version))
