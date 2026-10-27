@@ -65,7 +65,7 @@ api (routers, esquemas HTTP)  →  services (casos de uso)  →  repositories (S
 | `workflows` | ✅ | DSL, validación del grafo, versiones inmutables, endpoints |
 | `engine` | ✅ | Máquinas de estado, runner (reclamo/lease), barrido, cliente HTTP anti-SSRF, Celery |
 | `integrations` | ✅ | Credenciales cifradas (Fernet), adaptadores de autenticación, resolución en el worker |
-| `webhooks` | Fase 6 | Entrantes (HMAC) y salientes (outbox) |
+| `webhooks` | ✅ | Firma HMAC, triggers entrantes, outbox transaccional, entregas con dead-letter |
 | `audit` | ✅ escritura | Registro de acciones sensibles (la consulta llega en la Fase 7) |
 
 ## 4. Ciclo de una petición (implementado)
@@ -123,10 +123,7 @@ Las tablas se crean fase a fase mediante migraciones. Diseño aprobado:
 
 | Tabla | Fase | Restricciones clave |
 |---|---|---|
-| `users`, `refresh_tokens`, `audit_log`, `workflows`, `workflow_versions`, `workflow_runs`, `step_runs`, `step_attempts`, `credentials` | 2-5 ✅ | Ver [data-model.md](data-model.md) |
-| `triggers` | 3/6 | Secreto HMAC cifrado |
-| `inbound_webhook_events` | 6 | `UNIQUE(trigger_id, event_key)`: deduplicación y anti-replay |
-| `webhook_subscriptions`, `webhook_deliveries` | 6 | Outbox con índice parcial sobre las pendientes |
+| Todas las del producto (usuarios, flujos, ejecuciones, credenciales, webhooks) | 2-6 ✅ | Ver [data-model.md](data-model.md) |
 
 ## 7. Garantías de ejecución (implementado, ver [ADR-0007](adr/0007-motor-de-ejecucion.md))
 

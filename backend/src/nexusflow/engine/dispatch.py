@@ -20,13 +20,16 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 PROCESS_STEP_TASK = "nexusflow.process_step"
+DELIVER_WEBHOOK_TASK = "nexusflow.deliver_webhook"
 SWEEP_TASK = "nexusflow.sweep"
 
 
 @dataclass(frozen=True, slots=True)
 class DispatchItem:
+    # Id del paso (process_step) o de la entrega de webhook (deliver_webhook).
     step_run_id: uuid.UUID
     countdown: float | None = None
+    task: str = PROCESS_STEP_TASK
 
 
 class Dispatcher(Protocol):
@@ -40,7 +43,7 @@ class CeleryDispatcher:
     def _send(self, items: list[DispatchItem]) -> None:
         for item in items:
             self._app.send_task(
-                PROCESS_STEP_TASK,
+                item.task,
                 args=[str(item.step_run_id)],
                 countdown=item.countdown or None,
             )

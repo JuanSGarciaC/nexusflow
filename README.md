@@ -9,8 +9,8 @@ trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y 
 en segundo plano con reintentos, timeouts e idempotencia.
 
 > **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fases 1 a 5 completadas** (fundaciones, autenticación y RBAC, definición de flujos,
-> motor de ejecución, credenciales cifradas e integraciones).
+> **Fases 1 a 6 completadas** (fundaciones, autenticación y RBAC, definición de flujos,
+> motor de ejecución, credenciales cifradas, webhooks firmados).
 > Esta documentación describe solo lo que ya existe y está probado. Lo pendiente aparece en la
 > [hoja de ruta](#hoja-de-ruta).
 
@@ -69,6 +69,7 @@ nexusflow/
 │  │  ├─ workflows/       # DSL, validación del grafo, versiones, endpoints
 │  │  ├─ engine/          # ejecuciones, runner, cliente HTTP seguro, Celery
 │  │  ├─ integrations/    # credenciales cifradas y adaptadores de autenticación
+│  │  ├─ webhooks/        # firma HMAC, triggers entrantes, outbox y entregas salientes
 │  │  ├─ observability/   # health checks
 │  │  ├─ cli.py           # comando `nexusflow create-admin`
 │  │  └─ main.py          # application factory
@@ -209,6 +210,8 @@ uv run pytest
 | `integration/test_celery_worker.py` | **API → Redis → worker de Celery real → PostgreSQL → API externa**, con paso `delay` |
 | `unit/test_credentials_units.py` | Cifrado con vinculación a la fila, manipulación detectada, rotación de claves, adaptadores, hosts válidos, redacción |
 | `integration/test_credentials.py` | Secreto de solo escritura (ni en respuestas, ni en la tabla en claro, ni en la auditoría), permisos, `unknown_credential` al publicar, borrado bloqueado si está en uso, **inyección y redacción en el motor**, **host no permitido**, **cifrado intercambiado entre filas**, rotación |
+| `unit/test_webhook_signing.py` | Firma: manipulación de un byte, otro secreto, ventana de tiempo, **timestamp reescrito**, cabeceras mal formadas, rotación con dos firmas |
+| `integration/test_webhooks.py` | Entrada: secreto mostrado una vez, entrada filtrada, **deduplicación con y sin id de evento**, firmas rechazadas (ausente, otra, caducada, cuerpo cambiado), 404 indistinguible, rotación, límite de uso. Salida: **evento firmado verificado por el receptor**, filtros, **el outbox se deshace con el rollback**, reintentos con el mismo `event_id` → dead-letter → reenvío, anti-SSRF, recuperación por barrido |
 | `integration/test_workflows_api.py` | Ciclo de vida borrador → publicación → nueva versión, concurrencia optimista (4 guardados simultáneos: 1 gana), **inmutabilidad en la base de datos**, archivo, búsqueda literal, límite de tamaño (413) |
 
 En CI se define `NEXUSFLOW_REQUIRE_INTEGRATION=1`. Si faltan los servicios, las pruebas
@@ -286,6 +289,41 @@ con `needs_review` cuando un paso no idempotente tiene un resultado desconocido.
 Todas requieren `credentials:manage` (editor o admin). Un paso la usa con
 `"credential": "<nombre>"`. Ver [ADR-0008](docs/adr/0008-credenciales.md).
 
+### Webhooks
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/v1/hooks/{trigger_id}` | **Público, firmado con HMAC.** Lanza el flujo. `202`; un evento repetido devuelve `200` con la misma ejecución |
+| POST/GET | `/api/v1/workflows/{id}/triggers` | Crea un trigger (el secreto `whsec_…` se muestra una vez) / lista |
+| PATCH/DELETE | `/api/v1/triggers/{id}` | Activar, renombrar, limitar / borrar |
+| POST | `/api/v1/triggers/{id}/rotate-secret` | Secreto nuevo; el anterior deja de valer |
+| POST/GET | `/api/v1/webhook-subscriptions` | Suscribe una URL https a `run.succeeded`, `run.failed`, `run.needs_review`, `run.timed_out` o `run.cancelled` |
+| PATCH/DELETE | `/api/v1/webhook-subscriptions/{id}` | Editar / borrar |
+| POST | `/api/v1/webhook-subscriptions/{id}/ping` | Evento de prueba |
+| GET | `/api/v1/webhook-subscriptions/{id}/deliveries` | Historial, incluido el *dead-letter* |
+| POST | `/api/v1/webhook-deliveries/{id}/redeliver` | Reenvía con el mismo `event_id` |
+
+La gestión requiere `webhooks:manage`. Firma en ambos sentidos:
+`X-NexusFlow-Signature: t=<unix>,v1=<HMAC-SHA256(secreto, "<t>." + cuerpo)>`, con una
+ventana de 5 minutos. Ejemplo de envío firmado desde Python:
+
+```python
+import hashlib, hmac, json, time, urllib.request
+secret, url = "whsec_...", "http://127.0.0.1:8000/api/v1/hooks/<trigger_id>"
+body = json.dumps({"order_id": "A-1"}).encode()
+t = int(time.time())
+sig = hmac.new(secret.encode(), f"{t}.".encode() + body, hashlib.sha256).hexdigest()
+req = urllib.request.Request(url, data=body, method="POST", headers={
+    "Content-Type": "application/json",
+    "X-NexusFlow-Signature": f"t={t},v1={sig}",
+    "X-NexusFlow-Event-Id": "pedido-A-1",  # opcional: deduplicación de reenvíos
+})
+print(urllib.request.urlopen(req).read())
+```
+
+Para verificar los webhooks **salientes**, `mock-partner/app.py` (`_valid_signature`)
+contiene un receptor de referencia. Ver [ADR-0009](docs/adr/0009-webhooks.md).
+
 Todos los errores siguen [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457):
 
 ```json
@@ -318,6 +356,8 @@ entorno: por ejemplo, un secreto de ejemplo con `NEXUSFLOW_ENV=production`.
 | `NEXUSFLOW_CELERY_BROKER_URL` | No | Broker de Celery; por defecto, `NEXUSFLOW_REDIS_URL` |
 | `NEXUSFLOW_RUN_MAX_DURATION_HOURS` | No | Plazo máximo de una ejecución (48) |
 | `NEXUSFLOW_STEP_OUTPUT_MAX_BYTES` | No | Tamaño máximo de la salida o respuesta de un paso (256 KiB) |
+| `NEXUSFLOW_WEBHOOK_SIGNATURE_TOLERANCE_SECONDS` | No | Ventana anti-replay de las firmas (300) |
+| `NEXUSFLOW_WEBHOOK_DELIVERY_MAX_ATTEMPTS` | No | Intentos antes del dead-letter (8) |
 | `NEXUSFLOW_EGRESS_ALLOW_HTTP` | No | Permitir `http://` en pasos (`false`; prohibido en producción) |
 | `NEXUSFLOW_EGRESS_ALLOWED_PRIVATE_HOSTS` | No | Hosts que pueden resolver a IPs privadas (solo desarrollo) |
 | `NEXUSFLOW_ACCESS_TOKEN_TTL_MINUTES` | No | Vida del access token (15) |
@@ -385,6 +425,15 @@ Motor de ejecución (Fase 4):
 - **Sin ejecuciones eternas:** timeout por paso, plazo máximo por ejecución, lease frente
   a workers caídos.
 
+Webhooks (Fase 6):
+
+- **HMAC-SHA256 sobre el cuerpo exacto y el timestamp**, ventana de 5 minutos,
+  comparación en tiempo constante, secretos cifrados y mostrados una sola vez.
+- **Deduplicación** de eventos entrantes; el mismo 404 para triggers inexistentes o
+  desactivados; límite de uso por trigger.
+- **Outbox transaccional** para los eventos salientes; entrega con anti-SSRF, reintentos y
+  dead-letter.
+
 Credenciales (Fase 5):
 
 - **Cifradas** con Fernet (autenticado) y **vinculadas a su fila**. Rotación de claves
@@ -410,8 +459,8 @@ Credenciales (Fase 5):
 | 3 | Definición de flujos: DSL, validación de grafo, versiones inmutables | ✅ Completada |
 | 4 | Motor de ejecución con Celery, cliente HTTP anti-SSRF, reintentos, timeouts, idempotencia | ✅ Completada |
 | 5 | Integraciones: credenciales cifradas, adaptadores, API externa simulada | ✅ Completada |
-| 6 | Webhooks entrantes (HMAC) y salientes (outbox) | ⏳ Pendiente |
-| 7 | Métricas y auditoría consultable | ⏳ |
+| 6 | Webhooks entrantes (HMAC) y salientes (outbox) | ✅ Completada |
+| 7 | Métricas y auditoría consultable | ⏳ Pendiente |
 | 8 | Frontend React + TypeScript + Mantine | ⏳ |
 | 9 | E2E con Playwright, datos de demostración y guía de despliegue | ⏳ |
 
@@ -443,6 +492,9 @@ Resumen. El razonamiento completo está en [docs/adr](docs/adr/).
 - **Credenciales cifradas, de solo escritura y vinculadas a hosts:** un editor puede usar
   el token del CRM, pero no verlo ni enviarlo a otro servidor.
   ([ADR-0008](docs/adr/0008-credenciales.md))
+- **Webhooks firmados + outbox transaccional:** solo quien tiene el secreto lanza flujos,
+  una petición capturada no se puede reutilizar, y un evento saliente existe si y solo si
+  su transacción se confirmó. ([ADR-0009](docs/adr/0009-webhooks.md))
 
 El modelo de datos está documentado en [docs/data-model.md](docs/data-model.md).
 

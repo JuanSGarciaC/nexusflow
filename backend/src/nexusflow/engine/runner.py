@@ -54,6 +54,7 @@ from nexusflow.engine.planning import (
     finish_run,
     succeed_step,
 )
+from nexusflow.webhooks.outbox import pop_new_deliveries
 from nexusflow.workflows.dsl import SideEffect, WorkflowDefinition
 from nexusflow.workflows.models import WorkflowVersion
 from nexusflow.workflows.service import parse_stored
@@ -229,6 +230,7 @@ class Engine:
             if run.deadline_at <= now:
                 await self._time_out(session, run, now)
                 await session.commit()
+                await self._dispatcher.dispatch(pop_new_deliveries(session))
                 return None
 
             if run.status == RunStatus.PENDING:
@@ -296,6 +298,7 @@ class Engine:
             if item is not None:
                 to_dispatch.append(item)
             await session.commit()
+            to_dispatch.extend(pop_new_deliveries(session))
         await self._dispatcher.dispatch(to_dispatch)
         return "succeeded"
 
@@ -315,6 +318,7 @@ class Engine:
             if item is not None:
                 to_dispatch.append(item)
             await session.commit()
+            to_dispatch.extend(pop_new_deliveries(session))
         await self._dispatcher.dispatch(to_dispatch)
         return label
 
@@ -407,6 +411,7 @@ class Engine:
                     await self._time_out(session, run, utcnow())
                     report.timed_out += 1
                 await session.commit()
+                await self._dispatcher.dispatch(pop_new_deliveries(session))
 
         for run_id, step_run_id in lost_steps:
             if await self._recover_lost(run_id, step_run_id):
@@ -459,6 +464,7 @@ class Engine:
             if item is not None:
                 to_dispatch.append(item)
             await session.commit()
+            to_dispatch.extend(pop_new_deliveries(session))
             logger.warning("lost_step_recovered", step_id=step.step_id, outcome=label)
         await self._dispatcher.dispatch(to_dispatch)
         return True

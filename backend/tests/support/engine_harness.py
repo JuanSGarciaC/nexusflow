@@ -20,13 +20,14 @@ from nexusflow.auth.permissions import Role
 from nexusflow.core.config import Settings
 from nexusflow.engine import service as runs
 from nexusflow.engine.celery_config import egress_policy
-from nexusflow.engine.dispatch import RecordingDispatcher
+from nexusflow.engine.dispatch import DELIVER_WEBHOOK_TASK, RecordingDispatcher
 from nexusflow.engine.executors import CredentialResolver, ExecutorDeps
 from nexusflow.engine.models import StepAttempt, StepRun, WorkflowRun
 from nexusflow.engine.runner import Engine
 from nexusflow.engine.schemas import RunCreate
 from nexusflow.integrations.crypto import CredentialCipher
 from nexusflow.integrations.service import DbCredentialResolver
+from nexusflow.webhooks.delivery import WebhookDeliverer
 from nexusflow.workflows import service as workflows
 from nexusflow.workflows.dsl import WorkflowDefinition
 from nexusflow.workflows.schemas import WorkflowCreate
@@ -41,6 +42,7 @@ class Harness:
     dispatcher: RecordingDispatcher
     engine: Engine
     actor_id: uuid.UUID
+    deliverer: WebhookDeliverer
 
     async def publish(self, definition: dict[str, Any], name: str | None = None) -> uuid.UUID:
         async with self.sessions() as s:
@@ -86,6 +88,10 @@ class Harness:
             if not items:
                 return labels
             for item in items:
+                if item.task == DELIVER_WEBHOOK_TASK:
+                    # Las entregas se procesan sin esperar su backoff (minutos en producción).
+                    labels.append("webhook:" + await self.deliverer.deliver(item.step_run_id))
+                    continue
                 if item.countdown:
                     await asyncio.sleep(item.countdown)
                 labels.append(await self.engine.process_step(item.step_run_id))
@@ -128,11 +134,10 @@ async def engine_harness(
 ) -> AsyncIterator[Harness]:
     db = create_async_engine(settings.database_url.get_secret_value(), pool_size=5)
     sessions = async_sessionmaker(db, expire_on_commit=False)
+    cipher = CredentialCipher(settings.credentials_encryption_keys.get_secret_value())
     if resolve_credential is None:
         # Igual que en el worker real: credenciales cifradas leídas de PostgreSQL.
-        resolve_credential = DbCredentialResolver(
-            sessions, CredentialCipher(settings.credentials_encryption_keys.get_secret_value())
-        )
+        resolve_credential = DbCredentialResolver(sessions, cipher)
     dispatcher = RecordingDispatcher()
     async with httpx.AsyncClient(trust_env=False) as http, sessions() as s:
         user = User(
@@ -153,7 +158,10 @@ async def engine_harness(
                 resolve_credential=resolve_credential,
             ),
         )
+        deliverer = WebhookDeliverer(
+            sessions, settings, http, egress_policy(settings), cipher, dispatcher
+        )
         try:
-            yield Harness(settings, sessions, dispatcher, engine, user.id)
+            yield Harness(settings, sessions, dispatcher, engine, user.id, deliverer)
         finally:
             await db.dispose()

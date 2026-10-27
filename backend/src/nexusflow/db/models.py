@@ -8,6 +8,8 @@ from nexusflow.auth.models import RefreshToken, User
 from nexusflow.db.base import Base
 from nexusflow.engine.models import StepAttempt, StepRun, WorkflowRun
 from nexusflow.integrations.models import Credential
+from nexusflow.webhooks import outbox as _outbox  # noqa: F401  # registra el hook del outbox
+from nexusflow.webhooks.models import WebhookDelivery, WebhookSubscription, WebhookTrigger
 from nexusflow.workflows.models import Workflow, WorkflowVersion
 
 __all__ = [
@@ -18,6 +20,9 @@ __all__ = [
     "StepAttempt",
     "StepRun",
     "User",
+    "WebhookDelivery",
+    "WebhookSubscription",
+    "WebhookTrigger",
     "Workflow",
     "WorkflowRun",
     "WorkflowVersion",

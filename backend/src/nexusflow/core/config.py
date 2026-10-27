@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     max_dispatch_countdown_seconds: int = Field(default=900, ge=1, le=3000)
     sweep_interval_seconds: float = Field(default=15.0, ge=1, le=300)
 
+    # --- Webhooks ---
+    webhook_signature_tolerance_seconds: int = Field(default=300, ge=30, le=3600)
+    webhook_delivery_max_attempts: int = Field(default=8, ge=1, le=20)
+    webhook_delivery_timeout_seconds: int = Field(default=10, ge=1, le=60)
+
     # --- Salida HTTP (anti-SSRF) ---
     egress_allow_http: bool = False
     # Hosts que pueden resolver a IPs privadas. Solo para desarrollo (p. ej. mock-partner).
