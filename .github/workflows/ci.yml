@@ -112,6 +112,17 @@ jobs:
           curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/no-existe | grep -q 404
           curl -s http://127.0.0.1:8000/no-existe -D - | grep -qi "content-type: application/problem+json"
           test "$(docker compose exec -T api id -u)" = "10001"
+      - name: Crear administrador e iniciar sesión dentro del stack
+        run: |
+          ADMIN_PASSWORD="$(openssl rand -hex 16)-Ci"
+          docker compose exec -T -e NEXUSFLOW_ADMIN_PASSWORD="$ADMIN_PASSWORD" api \
+            nexusflow create-admin --email ci-admin@example.com
+          TOKEN=$(curl -fsS http://127.0.0.1:8000/api/v1/auth/login \
+            -H 'Content-Type: application/json' \
+            -d "{\"email\":\"ci-admin@example.com\",\"password\":\"$ADMIN_PASSWORD\"}" \
+            | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+          curl -fsS http://127.0.0.1:8000/api/v1/users/me -H "Authorization: Bearer $TOKEN" \
+            | grep -q '"role":"admin"'
       - name: Logs del stack
         if: always()
         run: docker compose logs --no-color

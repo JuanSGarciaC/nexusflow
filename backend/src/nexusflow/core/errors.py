@@ -34,6 +34,24 @@ class AppError(Exception):
         self.detail = detail
         self.extra = extra or {}
 
+    def response_headers(self) -> dict[str, str]:
+        return {}
+
+
+class UnauthorizedError(AppError):
+    status_code = 401
+    code = "unauthorized"
+    title = "No autenticado"
+
+    def response_headers(self) -> dict[str, str]:
+        return {"WWW-Authenticate": "Bearer"}
+
+
+class ForbiddenError(AppError):
+    status_code = 403
+    code = "forbidden"
+    title = "Permisos insuficientes"
+
 
 class NotFoundError(AppError):
     status_code = 404
@@ -96,6 +114,7 @@ async def _app_error_handler(request: Request, exc: Exception) -> JSONResponse:
         title=exc.title,
         detail=exc.detail,
         extra=exc.extra,
+        headers=exc.response_headers(),
     )
 
 
@@ -124,7 +143,8 @@ async def _validation_error_handler(request: Request, exc: Exception) -> JSONRes
     errors = [
         {
             "loc": list(error.get("loc", ())),
-            "msg": error.get("msg", ""),
+            # Pydantic antepone "Value error, " a los mensajes de validadores propios.
+            "msg": str(error.get("msg", "")).removeprefix("Value error, "),
             "type": error.get("type", ""),
         }
         for error in exc.errors()

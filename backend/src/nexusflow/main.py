@@ -10,10 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
 from nexusflow import __version__
+from nexusflow.auth.router import auth_router, users_router
 from nexusflow.core.config import Settings, get_settings
 from nexusflow.core.errors import register_error_handlers
 from nexusflow.core.logging import configure_logging, get_logger
 from nexusflow.core.middleware import RequestContextMiddleware
+from nexusflow.core.rate_limit import RateLimiter
 from nexusflow.db.session import create_engine, create_session_factory
 from nexusflow.observability import health
 
@@ -35,6 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.engine = engine
         app.state.session_factory = create_session_factory(engine)
         app.state.redis = redis
+        app.state.rate_limiter = RateLimiter(redis)
         logger.info("startup", env=settings.env, version=__version__)
         try:
             yield
@@ -64,12 +67,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_credentials=True,
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
             allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-            expose_headers=["X-Request-ID"],
+            expose_headers=["X-Request-ID", "Retry-After"],
         )
     # Añadido al final para ser el middleware más externo: todo log lleva request_id.
     app.add_middleware(RequestContextMiddleware)
 
     app.include_router(health.router)
+    app.include_router(auth_router)
+    app.include_router(users_router)
     return app
 
 
