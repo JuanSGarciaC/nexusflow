@@ -1,0 +1,9 @@
+# Finales de línea LF en el repositorio, también en Windows: evita que scripts y
+# Dockerfiles se rompan dentro de contenedores Linux.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary

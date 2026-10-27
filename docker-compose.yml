@@ -1,0 +1,75 @@
+# Stack de desarrollo y demostración de NexusFlow.
+# Uso: copia .env.example a .env, rellena los secretos y ejecuta `docker compose up -d --build`.
+#
+# Solo la API publica un puerto, y únicamente en 127.0.0.1. PostgreSQL y Redis quedan
+# dentro de la red interna de compose.
+
+name: nexusflow
+
+x-backend-env: &backend-env
+  NEXUSFLOW_ENV: ${NEXUSFLOW_ENV:-development}
+  NEXUSFLOW_LOG_LEVEL: ${NEXUSFLOW_LOG_LEVEL:-INFO}
+  NEXUSFLOW_LOG_JSON: ${NEXUSFLOW_LOG_JSON:-true}
+  NEXUSFLOW_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-nexusflow}:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}@postgres:5432/${POSTGRES_DB:-nexusflow}
+  NEXUSFLOW_REDIS_URL: redis://:${REDIS_PASSWORD:?Define REDIS_PASSWORD en .env}@redis:6379/0
+  NEXUSFLOW_SECRET_KEY: ${NEXUSFLOW_SECRET_KEY:?Define NEXUSFLOW_SECRET_KEY en .env}
+  NEXUSFLOW_CORS_ORIGINS: ${NEXUSFLOW_CORS_ORIGINS:-}
+  NEXUSFLOW_DOCS_ENABLED: ${NEXUSFLOW_DOCS_ENABLED:-true}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nexusflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:-nexusflow}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Define REDIS_PASSWORD en .env}", "--appendonly", "yes"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Define REDIS_PASSWORD en .env}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # Ejecuta las migraciones una vez y termina. La API no arranca si fallan.
+  migrate:
+    build:
+      context: ./backend
+    image: nexusflow-backend:local
+    command: ["alembic", "upgrade", "head"]
+    environment: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: nexusflow-backend:local
+    environment: *backend-env
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
