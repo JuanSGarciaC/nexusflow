@@ -9,8 +9,8 @@ trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y 
 en segundo plano con reintentos, timeouts e idempotencia.
 
 > **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fases 1 (Fundaciones) y 2 (Autenticación y RBAC) completadas.** Esta documentación
-> describe solo lo que ya existe y está probado. Lo pendiente aparece en la
+> **Fases 1 a 3 completadas** (fundaciones, autenticación y RBAC, definición de flujos).
+> Esta documentación describe solo lo que ya existe y está probado. Lo pendiente aparece en la
 > [hoja de ruta](#hoja-de-ruta).
 
 ## Contenido
@@ -62,6 +62,7 @@ nexusflow/
 │  │  ├─ db/              # base declarativa, sesiones, registro de modelos
 │  │  ├─ auth/            # usuarios, contraseñas, tokens, permisos, endpoints
 │  │  ├─ audit/           # registro de auditoría (solo inserción)
+│  │  ├─ workflows/       # DSL, validación del grafo, versiones, endpoints
 │  │  ├─ observability/   # health checks
 │  │  ├─ cli.py           # comando `nexusflow create-admin`
 │  │  └─ main.py          # application factory
@@ -170,6 +171,8 @@ uv run pytest
 | `integration/test_auth_flows.py` | Registro, login y `me`; atributos de la cookie; mismo error para email inexistente y contraseña errónea; rotación; **reutilización de refresh token revoca la familia**; logout; RBAC; cambio de rol efectivo al instante; desactivación corta access y refresh; límites de uso con `Retry-After`; auditoría sin contraseñas |
 | `integration/test_auth_concurrency.py` | Dos canjes simultáneos del mismo refresh token: exactamente uno gana. Cinco registros simultáneos del mismo email: exactamente uno se crea. |
 | `integration/test_cli.py` | `create-admin`: creación auditada, duplicados y contraseñas débiles |
+| `unit/test_workflow_dsl.py` | Estructura del DSL, cabeceras peligrosas, efectos secundarios por método, ciclos, pasos inalcanzables, referencias no garantizadas (dominadores), plantillas y condiciones |
+| `integration/test_workflows_api.py` | Ciclo de vida borrador → publicación → nueva versión, concurrencia optimista (4 guardados simultáneos: 1 gana), **inmutabilidad en la base de datos**, archivo, búsqueda literal, límite de tamaño (413) |
 
 En CI se define `NEXUSFLOW_REQUIRE_INTEGRATION=1`. Si faltan los servicios, las pruebas
 de integración **fallan** en lugar de omitirse en silencio.
@@ -204,6 +207,21 @@ Los endpoints exigen **permisos**, no roles. La matriz completa está en
 El primer administrador solo se crea con el comando `nexusflow create-admin`: ningún
 endpoint permite a un usuario anónimo obtener privilegios.
 
+### Flujos de trabajo
+
+| Método | Ruta | Permiso | Descripción |
+|---|---|---|---|
+| POST | `/api/v1/workflows` | `workflows:write` | Crea el flujo con su borrador v1 |
+| GET | `/api/v1/workflows` | `workflows:read` | Lista con `status`, `q` (búsqueda literal), `limit`, `offset` |
+| GET | `/api/v1/workflows/{id}` | `workflows:read` | Detalle, borrador y última versión publicada, con incidencias |
+| PATCH | `/api/v1/workflows/{id}` | `workflows:write` | Renombrar, describir, archivar o restaurar |
+| PUT | `/api/v1/workflows/{id}/draft` | `workflows:write` | Guarda el borrador (`expected_revision` para la concurrencia optimista) |
+| POST | `/api/v1/workflows/{id}/publish` | `workflows:write` | Publica si no hay incidencias. La versión queda inmutable. |
+| GET | `/api/v1/workflows/{id}/versions[/{n}]` | `workflows:read` | Historial y definición de una versión |
+| POST | `/api/v1/workflows/validate` | `workflows:read` | Valida una definición sin guardarla |
+
+El formato de los flujos está documentado en [docs/workflow-dsl.md](docs/workflow-dsl.md).
+
 Todos los errores siguen [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457):
 
 ```json
@@ -231,6 +249,7 @@ entorno: por ejemplo, un secreto de ejemplo con `NEXUSFLOW_ENV=production`.
 | `NEXUSFLOW_LOG_LEVEL` / `NEXUSFLOW_LOG_JSON` | No | `INFO` / `true` |
 | `NEXUSFLOW_CORS_ORIGINS` | No | Lista separada por comas. `*` está prohibido en producción. |
 | `NEXUSFLOW_DOCS_ENABLED` | No | Expone `/docs` y `/openapi.json` |
+| `NEXUSFLOW_MAX_REQUEST_BODY_BYTES` | No | Tamaño máximo del cuerpo (1 MiB). Responde `413` si se supera. |
 | `NEXUSFLOW_ACCESS_TOKEN_TTL_MINUTES` | No | Vida del access token (15) |
 | `NEXUSFLOW_REFRESH_TOKEN_TTL_DAYS` | No | Vida del refresh token (7) |
 | `NEXUSFLOW_REGISTRATION_ENABLED` | No | Registro público (`true`) |
@@ -301,8 +320,8 @@ El cifrado de credenciales de integraciones y la protección anti-SSRF llegan en
 |---|---|---|
 | 1 | Fundaciones: configuración, logging, errores, DB, health checks, Docker, CI | ✅ Completada |
 | 2 | Autenticación (Argon2, JWT + refresh con rotación), RBAC, auditoría | ✅ Completada |
-| 3 | Definición de flujos: DSL, validación de grafo, versiones inmutables | ⏳ Pendiente |
-| 4 | Motor de ejecución con Celery: estados, reintentos, timeouts, idempotencia | ⏳ |
+| 3 | Definición de flujos: DSL, validación de grafo, versiones inmutables | ✅ Completada |
+| 4 | Motor de ejecución con Celery: estados, reintentos, timeouts, idempotencia | ⏳ Pendiente |
 | 5 | Integraciones: credenciales cifradas, cliente HTTP anti-SSRF, adaptadores | ⏳ |
 | 6 | Webhooks entrantes (HMAC) y salientes (outbox) | ⏳ |
 | 7 | Métricas y auditoría consultable | ⏳ |
@@ -327,6 +346,9 @@ Resumen. El razonamiento completo está en [docs/adr](docs/adr/).
 - **JWT corto + refresh opaco rotativo en cookie:** un XSS no puede robar la sesión
   larga, y un refresh token robado se detecta en cuanto se reutiliza.
   ([ADR-0005](docs/adr/0005-autenticacion.md))
+- **DSL sin código ejecutable y versiones inmutables:** un editor no puede ejecutar código
+  en el servidor, y lo que se ejecutó no puede cambiar después (trigger en PostgreSQL).
+  ([ADR-0006](docs/adr/0006-dsl-de-flujos.md))
 
 El modelo de datos está documentado en [docs/data-model.md](docs/data-model.md).
 

@@ -62,7 +62,7 @@ api (routers, esquemas HTTP)  →  services (casos de uso)  →  repositories (S
 | `db` | ✅ | Base declarativa con convención de nombres, sesiones async |
 | `observability` | ✅ parcial | Health checks (métricas en la Fase 7) |
 | `auth` | ✅ | Usuarios, contraseñas, tokens, permisos, endpoints |
-| `workflows` | Fase 3 | DSL, validación, versiones |
+| `workflows` | ✅ | DSL, validación del grafo, versiones inmutables, endpoints |
 | `engine` | Fase 4 | Máquina de estados, orquestador, condiciones |
 | `integrations` | Fase 5 | Adaptadores, credenciales cifradas, cliente HTTP seguro |
 | `webhooks` | Fase 6 | Entrantes (HMAC) y salientes (outbox) |
@@ -123,8 +123,7 @@ Las tablas se crean fase a fase mediante migraciones. Diseño aprobado:
 
 | Tabla | Fase | Restricciones clave |
 |---|---|---|
-| `users`, `refresh_tokens`, `audit_log` | 2 ✅ | Ver [data-model.md](data-model.md) |
-| `workflows`, `workflow_versions` | 3 | `UNIQUE(workflow_id, version)`; inmutable tras publicar |
+| `users`, `refresh_tokens`, `audit_log`, `workflows`, `workflow_versions` | 2-3 ✅ | Ver [data-model.md](data-model.md) |
 | `triggers` | 3/6 | Secreto HMAC cifrado |
 | `workflow_runs` | 4 | `UNIQUE(workflow_id, idempotency_key)` |
 | `step_runs`, `step_attempts` | 4 | `UNIQUE(run_id, step_id)` |

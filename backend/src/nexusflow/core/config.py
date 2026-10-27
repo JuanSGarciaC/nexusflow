@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
     docs_enabled: bool = True
     readiness_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
+    # Límite del cuerpo de las peticiones: evita agotar memoria con JSON gigantes.
+    max_request_body_bytes: int = Field(default=1_048_576, ge=1024, le=50 * 1_048_576)
 
     @field_validator("cors_origins", mode="before")
     @classmethod
