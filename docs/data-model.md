@@ -1,6 +1,6 @@
 # Modelo de datos
 
-> Refleja las migraciones aplicadas hasta la **Fase 3**. Cada fase añade sus tablas
+> Refleja las migraciones aplicadas hasta la **Fase 4**. Cada fase añade sus tablas
 > mediante una migración de Alembic; `alembic check` en CI garantiza que modelos y
 > migraciones coinciden.
 
@@ -11,6 +11,10 @@ erDiagram
     refresh_tokens |o--o| refresh_tokens : "reemplazado por"
     workflows ||--|{ workflow_versions : "versiones"
     users |o--o{ workflows : "crea"
+    workflows ||--o{ workflow_runs : "ejecuciones"
+    workflow_versions ||--o{ workflow_runs : "versión ejecutada"
+    workflow_runs ||--|{ step_runs : "pasos"
+    step_runs ||--|{ step_attempts : "intentos"
 
     users {
         uuid id PK
@@ -64,6 +68,42 @@ erDiagram
         timestamptz published_at "NULL = borrador"
         uuid published_by FK
     }
+    workflow_runs {
+        uuid id PK
+        uuid workflow_id FK
+        uuid version_id FK "RESTRICT"
+        varchar status "CHECK"
+        varchar idempotency_key "UNIQUE parcial con workflow_id"
+        varchar input_hash
+        jsonb input
+        jsonb output
+        jsonb error
+        timestamptz deadline_at
+    }
+    step_runs {
+        uuid id PK
+        uuid run_id FK
+        varchar step_id "UNIQUE(run_id, step_id)"
+        varchar status "CHECK"
+        varchar side_effect
+        varchar idempotency_key "run_id:step_id"
+        int attempt_count
+        int max_attempts
+        timestamptz next_attempt_at
+        timestamptz lease_expires_at
+        timestamptz last_dispatched_at
+        jsonb output
+        jsonb error
+    }
+    step_attempts {
+        bigint id PK
+        uuid step_run_id FK
+        int attempt_number "UNIQUE con step_run_id"
+        varchar outcome "succeeded|failed|abandoned|stale"
+        varchar error_class
+        int http_status
+        int duration_ms
+    }
 ```
 
 ## Decisiones
@@ -82,6 +122,10 @@ erDiagram
 | Trigger `trg_workflow_versions_immutable` | Rechaza `UPDATE`/`DELETE` de una versión publicada: lo ejecutado no puede cambiar. |
 | `definition_hash` | Identifica la definición exacta (JSON canónico) en auditoría y ejecuciones. |
 | `workflows` sin borrado físico | Se archivan; `RESTRICT` en la FK impide borrar un flujo con versiones. |
+| `UNIQUE (workflow_id, idempotency_key) WHERE idempotency_key IS NOT NULL` | Creación idempotente de ejecuciones, también con peticiones simultáneas. |
+| `version_id` con `RESTRICT` | Cada ejecución apunta a la versión exacta (inmutable) que ejecutó. |
+| Índice parcial `ix_step_runs_dispatch` | El barrido solo recorre pasos activos, no el historial completo. |
+| `step_attempts` separado de `step_runs` | Historial completo de cada intento sin sobrescribir el anterior. |
 | Convención de nombres de restricciones | Nombres deterministas (`uq_users_email`, `fk_refresh_tokens_user_id_users`), así las migraciones son reproducibles. |
 
 ## Tablas planificadas
