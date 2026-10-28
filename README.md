@@ -9,9 +9,11 @@ trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y 
 en segundo plano con reintentos, timeouts e idempotencia.
 
 > **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fases 1 a 9 completadas:** fundaciones, autenticación y RBAC, definición de flujos,
-> motor de ejecución, credenciales cifradas, webhooks firmados, métricas y auditoría, panel
-> web, y E2E con datos de demostración y guía de despliegue.
+> **Fases 1 a 9 completadas y revisadas:** fundaciones, autenticación y RBAC, definición
+> de flujos, motor de ejecución, credenciales cifradas, webhooks firmados, métricas y
+> auditoría, panel web, y E2E con datos de demostración y guía de despliegue. La revisión de
+> seguridad ([OWASP API Top 10](docs/security-review.md)) y la de rendimiento
+> ([mediciones](docs/performance.md)) están documentadas con sus pruebas.
 > Esta documentación describe solo lo que ya existe y está probado. Lo pendiente aparece en la
 > [hoja de ruta](#hoja-de-ruta).
 
@@ -40,7 +42,7 @@ en segundo plano con reintentos, timeouts e idempotencia.
 | Sistemas distribuidos | Celery con entrega *at-least-once*, reclamo atómico en PostgreSQL, lease y barrido de recuperación, pruebas con un worker real |
 | Operación | Logs JSON con `request_id`, health checks *liveness* / *readiness*, Docker no-root |
 | Frontend | React 19 + TypeScript estricto + Mantine, **cliente tipado generado desde OpenAPI** (el CI falla si el contrato se desincroniza), sesión en memoria + cookie HttpOnly con renovación serializada, CSP sin scripts inline |
-| Calidad | Ruff, mypy `strict`, ESLint, pruebas contra PostgreSQL y Redis reales, Vitest, CI con escaneo de secretos |
+| Calidad | Ruff, mypy `strict`, ESLint; 329 pruebas de backend (87 % de cobertura con ramas, mínimo 85 % en CI) contra PostgreSQL y Redis reales, 23 de frontend y 6 E2E; CI con auditoría de dependencias y escaneo de secretos |
 
 ## Arquitectura
 
@@ -552,6 +554,7 @@ Credenciales (Fase 5):
 | [docs/security-review.md](docs/security-review.md) | Revisión frente al OWASP API Top 10 (2023): control y prueba que lo respalda en cada punto, y limitaciones aceptadas |
 | [docs/performance.md](docs/performance.md) | Planes y tiempos de las consultas críticas con 50 000 ejecuciones, la optimización aplicada y cuándo dejará de bastar |
 | [docs/adr/](docs/adr/) | 11 decisiones de arquitectura con alternativas descartadas |
+| [SECURITY.md](SECURITY.md) | Cómo reportar una vulnerabilidad |
 | `/docs` (Swagger) y [backend/openapi.json](backend/openapi.json) | Referencia completa de los endpoints |
 
 ## Hoja de ruta
