@@ -9,8 +9,9 @@ trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y 
 en segundo plano con reintentos, timeouts e idempotencia.
 
 > **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fases 1 a 7 completadas** (fundaciones, autenticación y RBAC, definición de flujos,
-> motor de ejecución, credenciales cifradas, webhooks firmados, métricas y auditoría).
+> **Fases 1 a 8 completadas** (fundaciones, autenticación y RBAC, definición de flujos,
+> motor de ejecución, credenciales cifradas, webhooks firmados, métricas y auditoría, panel
+> web).
 > Esta documentación describe solo lo que ya existe y está probado. Lo pendiente aparece en la
 > [hoja de ruta](#hoja-de-ruta).
 
@@ -37,7 +38,8 @@ en segundo plano con reintentos, timeouts e idempotencia.
 | Integración | Cliente HTTP anti-SSRF, reintentos con backoff y jitter, idempotencia de efectos, revisión manual de resultados inciertos |
 | Sistemas distribuidos | Celery con entrega *at-least-once*, reclamo atómico en PostgreSQL, lease y barrido de recuperación, pruebas con un worker real |
 | Operación | Logs JSON con `request_id`, health checks *liveness* / *readiness*, Docker no-root |
-| Calidad | Ruff, mypy `strict`, pruebas contra PostgreSQL y Redis reales, CI con escaneo de secretos |
+| Frontend | React 19 + TypeScript estricto + Mantine, **cliente tipado generado desde OpenAPI** (el CI falla si el contrato se desincroniza), sesión en memoria + cookie HttpOnly con renovación serializada, CSP sin scripts inline |
+| Calidad | Ruff, mypy `strict`, ESLint, pruebas contra PostgreSQL y Redis reales, Vitest, CI con escaneo de secretos |
 
 ## Arquitectura
 
@@ -47,7 +49,9 @@ Monolito modular: un único código backend que se ejecuta como varios procesos
 
 ```mermaid
 flowchart LR
-    client[Cliente / Panel web] -->|HTTP| api[api · FastAPI]
+    browser[Navegador] -->|HTTP| web[web · nginx + SPA React]
+    web -->|/api · mismo origen| api[api · FastAPI]
+    client[Sistemas externos] -->|webhooks firmados| api
     api --> pg[(PostgreSQL)]
     api -->|encola| redis[(Redis)]
     redis --> worker[worker · Celery]
@@ -75,7 +79,16 @@ nexusflow/
 │  │  └─ main.py          # application factory
 │  ├─ migrations/         # Alembic (async)
 │  ├─ tests/{unit,integration}/
+│  ├─ openapi.json        # contrato de la API (generado; fuente de los tipos del frontend)
 │  ├─ Dockerfile · pyproject.toml · uv.lock
+├─ frontend/
+│  ├─ src/
+│  │  ├─ api/             # cliente tipado (openapi-fetch), sesión y errores RFC 9457
+│  │  ├─ auth/            # login, proveedor de sesión, guardas por permiso
+│  │  ├─ features/        # panel, flujos, ejecuciones, credenciales, auditoría, usuarios
+│  │  └─ components/      # layout y componentes compartidos
+│  ├─ nginx.conf · security-headers.conf   # proxy al mismo origen y CSP
+│  ├─ Dockerfile · package.json · pnpm-lock.yaml
 ├─ mock-partner/          # API externa simulada (demos y CI; no es parte del producto)
 ├─ scripts/               # utilidades de CI
 ├─ docs/                  # arquitectura y ADR
@@ -102,6 +115,9 @@ curl http://127.0.0.1:8000/health/ready
 
 # 4. Crear el primer administrador (la contraseña se pide por teclado, sin eco)
 docker compose exec api nexusflow create-admin --email admin@example.com
+
+# 5. Abrir el panel
+start http://127.0.0.1:3000
 ```
 
 En Linux/macOS el primer paso es `cp .env.example .env`.
@@ -124,6 +140,7 @@ un cliente con un token Bearer, comprueba si es VIP y cobra. La pasarela falla d
 con 503, el motor reintenta con la misma `Idempotency-Key` y la pasarela registra **un
 solo** cargo.
 
+- Panel web: http://127.0.0.1:3000
 - Documentación interactiva: http://127.0.0.1:8000/docs
 - Logs: `docker compose logs -f api`
 - Apagar: `docker compose down` (añade `-v` para borrar también los datos)
@@ -173,6 +190,23 @@ uv run celery -A nexusflow.engine.worker:celery_app beat --loglevel=INFO
 > usa `--pool=solo` (un proceso, una tarea a la vez), como arriba. En Docker o Linux se
 > usa `prefork` con varios procesos.
 
+### Frontend (Node 22.22+ o 24 LTS)
+
+```powershell
+cd frontend
+corepack enable          # activa pnpm en la versión fijada en package.json
+pnpm install
+pnpm dev                 # http://127.0.0.1:5173 — reenvía /api a http://127.0.0.1:8000
+```
+
+Si la API está en otra dirección: `$env:NEXUSFLOW_API_URL = "http://127.0.0.1:8001"`.
+Tras cambiar la API, regenera el contrato y los tipos:
+
+```powershell
+cd backend;  uv run nexusflow export-openapi -o openapi.json
+cd ../frontend; pnpm gen:api
+```
+
 
 ## Pruebas y calidad
 
@@ -182,6 +216,13 @@ uv run ruff check .          # lint (incluye reglas de seguridad de Bandit)
 uv run ruff format --check . # formato
 uv run mypy                  # tipos en modo strict
 uv run pytest                # unitarias; las de integración se omiten sin servicios
+```
+
+Frontend:
+
+```powershell
+cd frontend
+pnpm lint; pnpm typecheck; pnpm test; pnpm build
 ```
 
 Para ejecutar también las pruebas de integración (PostgreSQL y Redis reales, sin mocks):
@@ -214,6 +255,8 @@ uv run pytest
 | `integration/test_webhooks.py` | Entrada: secreto mostrado una vez, entrada filtrada, **deduplicación con y sin id de evento**, firmas rechazadas (ausente, otra, caducada, cuerpo cambiado), 404 indistinguible, rotación, límite de uso. Salida: **evento firmado verificado por el receptor**, filtros, **el outbox se deshace con el rollback**, reintentos con el mismo `event_id` → dead-letter → reenvío, anti-SSRF, recuperación por barrido |
 | `integration/test_observability.py` | Métricas que reflejan ejecuciones reales (éxitos, fallos, reintentos, clases de error, flujos con más fallos); **percentiles exactos** con duraciones conocidas; ventana y filtro por flujo; canceladas fuera de la tasa de éxito; `/metrics` con token, etiquetas por plantilla de ruta (sin ids); auditoría con filtros, **paginación por cursor sin solapes** y prefijo que no actúa como comodín |
 | `integration/test_workflows_api.py` | Ciclo de vida borrador → publicación → nueva versión, concurrencia optimista (4 guardados simultáneos: 1 gana), **inmutabilidad en la base de datos**, archivo, búsqueda literal, límite de tamaño (413) |
+| `frontend/src/api/session.test.ts` | **Cinco 401 simultáneos → una sola renovación** (dos con el mismo refresh token cerrarían la sesión por detección de robo), reintento con el token nuevo, sin reintentos en `/auth/`, sin bucles |
+| `frontend/src/test/app.test.tsx` | App completa con rutas reales: login fallido con el error RFC 9457 y su referencia, vuelta a la página pedida, sesión recuperada por cookie, menú y páginas según permisos, publicación bloqueada con incidencias, **conflicto 409 al guardar**, resolución manual solo para quien puede ejecutar |
 
 En CI se define `NEXUSFLOW_REQUIRE_INTEGRATION=1`. Si faltan los servicios, las pruebas
 de integración **fallan** en lugar de omitirse en silencio.
@@ -475,7 +518,7 @@ Credenciales (Fase 5):
 | 5 | Integraciones: credenciales cifradas, adaptadores, API externa simulada | ✅ Completada |
 | 6 | Webhooks entrantes (HMAC) y salientes (outbox) | ✅ Completada |
 | 7 | Métricas de ejecución, Prometheus y auditoría consultable | ✅ Completada |
-| 8 | Frontend React + TypeScript + Mantine | ⏳ Pendiente |
+| 8 | Panel web React + TypeScript + Mantine | ✅ Completada |
 | 9 | E2E con Playwright, datos de demostración y guía de despliegue | ⏳ |
 
 ## Decisiones técnicas
@@ -512,6 +555,9 @@ Resumen. El razonamiento completo está en [docs/adr](docs/adr/).
 - **Métricas de negocio desde PostgreSQL, HTTP con Prometheus:** cifras coherentes entre
   procesos sin otro almacén, y `/metrics` cerrado salvo que se configure un token.
   ([ADR-0010](docs/adr/0010-observabilidad.md))
+- **SPA en el mismo origen que la API, tipos generados desde OpenAPI:** sin CORS, cookie
+  `SameSite=Strict`, CSP sin scripts inline, y un cambio de contrato rompe la compilación
+  del frontend en lugar de romper en producción. ([ADR-0011](docs/adr/0011-frontend.md))
 
 El modelo de datos está documentado en [docs/data-model.md](docs/data-model.md).
 
