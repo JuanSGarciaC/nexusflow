@@ -80,3 +80,13 @@ def test_invalid_fernet_keys_rejected(keys: str) -> None:
 def test_production_rejects_egress_relaxations() -> None:
     with pytest.raises(ValidationError, match="solo para desarrollo"):
         make_settings(env="production", secret_key="Zq" * 20, egress_allow_http=True)
+
+
+def test_metrics_token_rules() -> None:
+    assert make_settings().metrics_token is None
+    assert make_settings(metrics_token="").metrics_token is None  # vacío = deshabilitado
+    with pytest.raises(ValidationError, match="24 caracteres"):
+        make_settings(metrics_token="corto")
+    token = make_settings(metrics_token="m" * 30).metrics_token
+    assert token is not None
+    assert "m" * 30 not in repr(make_settings(metrics_token="m" * 30))

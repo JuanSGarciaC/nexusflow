@@ -9,8 +9,8 @@ trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y 
 en segundo plano con reintentos, timeouts e idempotencia.
 
 > **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fases 1 a 6 completadas** (fundaciones, autenticación y RBAC, definición de flujos,
-> motor de ejecución, credenciales cifradas, webhooks firmados).
+> **Fases 1 a 7 completadas** (fundaciones, autenticación y RBAC, definición de flujos,
+> motor de ejecución, credenciales cifradas, webhooks firmados, métricas y auditoría).
 > Esta documentación describe solo lo que ya existe y está probado. Lo pendiente aparece en la
 > [hoja de ruta](#hoja-de-ruta).
 
@@ -212,6 +212,7 @@ uv run pytest
 | `integration/test_credentials.py` | Secreto de solo escritura (ni en respuestas, ni en la tabla en claro, ni en la auditoría), permisos, `unknown_credential` al publicar, borrado bloqueado si está en uso, **inyección y redacción en el motor**, **host no permitido**, **cifrado intercambiado entre filas**, rotación |
 | `unit/test_webhook_signing.py` | Firma: manipulación de un byte, otro secreto, ventana de tiempo, **timestamp reescrito**, cabeceras mal formadas, rotación con dos firmas |
 | `integration/test_webhooks.py` | Entrada: secreto mostrado una vez, entrada filtrada, **deduplicación con y sin id de evento**, firmas rechazadas (ausente, otra, caducada, cuerpo cambiado), 404 indistinguible, rotación, límite de uso. Salida: **evento firmado verificado por el receptor**, filtros, **el outbox se deshace con el rollback**, reintentos con el mismo `event_id` → dead-letter → reenvío, anti-SSRF, recuperación por barrido |
+| `integration/test_observability.py` | Métricas que reflejan ejecuciones reales (éxitos, fallos, reintentos, clases de error, flujos con más fallos); **percentiles exactos** con duraciones conocidas; ventana y filtro por flujo; canceladas fuera de la tasa de éxito; `/metrics` con token, etiquetas por plantilla de ruta (sin ids); auditoría con filtros, **paginación por cursor sin solapes** y prefijo que no actúa como comodín |
 | `integration/test_workflows_api.py` | Ciclo de vida borrador → publicación → nueva versión, concurrencia optimista (4 guardados simultáneos: 1 gana), **inmutabilidad en la base de datos**, archivo, búsqueda literal, límite de tamaño (413) |
 
 En CI se define `NEXUSFLOW_REQUIRE_INTEGRATION=1`. Si faltan los servicios, las pruebas
@@ -336,6 +337,18 @@ Todos los errores siguen [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457):
 }
 ```
 
+### Métricas y auditoría
+
+| Método | Ruta | Permiso | Descripción |
+|---|---|---|---|
+| GET | `/api/v1/metrics/summary` | `metrics:read` | Ventana (`window_hours` 1-720) y `workflow_id` opcional. Ejecuciones por estado, **tasa de éxito**, duración media/p50/p95/máx, reintentos, serie temporal (por hora hasta 48 h, por día después), tiempos y fallos por tipo de paso, clases de error, flujos con más fallos y últimos fallos con su error |
+| GET | `/api/v1/audit-logs` | `audit:read` | Filtros `action`, `action_prefix`, `actor_user_id`, `resource_type`, `resource_id`, `since`, `until`. Paginación por cursor (`before_id`, `limit` ≤ 200) |
+| GET | `/metrics` | Bearer `NEXUSFLOW_METRICS_TOKEN` | Formato Prometheus: peticiones y latencia HTTP por plantilla de ruta, ejecuciones por estado, pasos activos, entregas pendientes y en dead-letter. **404 si no hay token configurado.** |
+
+Las métricas de negocio se calculan en PostgreSQL al consultarlas (`percentile_cont`,
+`COUNT … FILTER`): son las mismas cifras sin importar cuántos procesos API o worker haya.
+Las de HTTP son por proceso; Prometheus suma las de cada réplica.
+
 ## Configuración
 
 Toda la configuración entra por variables de entorno con el prefijo `NEXUSFLOW_`. La
@@ -352,6 +365,7 @@ entorno: por ejemplo, un secreto de ejemplo con `NEXUSFLOW_ENV=production`.
 | `NEXUSFLOW_LOG_LEVEL` / `NEXUSFLOW_LOG_JSON` | No | `INFO` / `true` |
 | `NEXUSFLOW_CORS_ORIGINS` | No | Lista separada por comas. `*` está prohibido en producción. |
 | `NEXUSFLOW_DOCS_ENABLED` | No | Expone `/docs` y `/openapi.json` |
+| `NEXUSFLOW_METRICS_TOKEN` | No | Token (≥ 24 caracteres) para leer `/metrics`. Sin él, `/metrics` responde 404 |
 | `NEXUSFLOW_MAX_REQUEST_BODY_BYTES` | No | Tamaño máximo del cuerpo (1 MiB). Responde `413` si se supera. |
 | `NEXUSFLOW_CELERY_BROKER_URL` | No | Broker de Celery; por defecto, `NEXUSFLOW_REDIS_URL` |
 | `NEXUSFLOW_RUN_MAX_DURATION_HOURS` | No | Plazo máximo de una ejecución (48) |
@@ -460,8 +474,8 @@ Credenciales (Fase 5):
 | 4 | Motor de ejecución con Celery, cliente HTTP anti-SSRF, reintentos, timeouts, idempotencia | ✅ Completada |
 | 5 | Integraciones: credenciales cifradas, adaptadores, API externa simulada | ✅ Completada |
 | 6 | Webhooks entrantes (HMAC) y salientes (outbox) | ✅ Completada |
-| 7 | Métricas y auditoría consultable | ⏳ Pendiente |
-| 8 | Frontend React + TypeScript + Mantine | ⏳ |
+| 7 | Métricas de ejecución, Prometheus y auditoría consultable | ✅ Completada |
+| 8 | Frontend React + TypeScript + Mantine | ⏳ Pendiente |
 | 9 | E2E con Playwright, datos de demostración y guía de despliegue | ⏳ |
 
 ## Decisiones técnicas
@@ -495,6 +509,9 @@ Resumen. El razonamiento completo está en [docs/adr](docs/adr/).
 - **Webhooks firmados + outbox transaccional:** solo quien tiene el secreto lanza flujos,
   una petición capturada no se puede reutilizar, y un evento saliente existe si y solo si
   su transacción se confirmó. ([ADR-0009](docs/adr/0009-webhooks.md))
+- **Métricas de negocio desde PostgreSQL, HTTP con Prometheus:** cifras coherentes entre
+  procesos sin otro almacén, y `/metrics` cerrado salvo que se configure un token.
+  ([ADR-0010](docs/adr/0010-observabilidad.md))
 
 El modelo de datos está documentado en [docs/data-model.md](docs/data-model.md).
 

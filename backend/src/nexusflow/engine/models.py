@@ -134,6 +134,9 @@ class WorkflowRun(UUIDPrimaryKeyMixin, Base):
         ),
         Index("ix_workflow_runs_workflow_created", "workflow_id", "created_at"),
         Index("ix_workflow_runs_status", "status"),
+        # Métricas e historial global por ventana de tiempo (sin filtrar por flujo).
+        Index("ix_workflow_runs_created_at", "created_at"),
+        Index("ix_workflow_runs_finished_at", "finished_at"),
     )
 
     workflow_id: Mapped[uuid.UUID] = mapped_column(
@@ -209,6 +212,7 @@ class StepAttempt(Base):
     __tablename__ = "step_attempts"
     __table_args__ = (
         UniqueConstraint("step_run_id", "attempt_number", name="uq_step_attempts_number"),
+        Index("ix_step_attempts_started_at", "started_at"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

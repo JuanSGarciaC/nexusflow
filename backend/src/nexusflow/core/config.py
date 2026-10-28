@@ -89,6 +89,11 @@ class Settings(BaseSettings):
         description="Una o más claves Fernet (base64 urlsafe de 32 bytes), separadas por comas",
     )
 
+    # --- Observabilidad ---
+    # Token Bearer que Prometheus envía al leer /metrics. Sin token, /metrics no existe (404):
+    # las métricas revelan rutas, volumen y errores, así que no se publican por defecto.
+    metrics_token: SecretStr | None = None
+
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
     docs_enabled: bool = True
     readiness_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
@@ -133,6 +138,15 @@ class Settings(BaseSettings):
                     "credentials_encryption_keys contiene una clave Fernet no válida; "
                     "genera una con 'nexusflow generate-key'"
                 ) from exc
+        return value
+
+    @field_validator("metrics_token")
+    @classmethod
+    def _check_metrics_token(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and not value.get_secret_value():
+            return None  # NEXUSFLOW_METRICS_TOKEN= (vacío) equivale a no definirlo
+        if value is not None and len(value.get_secret_value()) < 24:
+            raise ValueError("metrics_token debe tener al menos 24 caracteres")
         return value
 
     @field_validator("secret_key")
