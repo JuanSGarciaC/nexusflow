@@ -4,6 +4,7 @@
     nexusflow generate-key           # clave Fernet para NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS
     nexusflow rotate-credentials     # vuelve a cifrar todo con la primera clave
     nexusflow export-openapi -o openapi.json   # contrato de la API para el frontend
+    nexusflow seed-demo --runs 6     # usuarios, flujos y ejecuciones de demostración
 
 El registro público solo crea usuarios `viewer`. El primer administrador se crea con este
 comando, que requiere acceso al servidor: no existe ningún endpoint que permita a un
@@ -130,6 +131,44 @@ def export_openapi(path: str) -> int:
     return 0
 
 
+async def seed_demo_command(runs_per_flow: int) -> int:
+    from nexusflow.demo import DEMO_USERS, seed_demo
+    from nexusflow.engine.celery_config import create_celery
+    from nexusflow.engine.dispatch import CeleryDispatcher
+
+    settings = get_settings()
+    engine = create_engine(settings)
+    try:
+        report = await seed_demo(
+            create_session_factory(engine),
+            settings,
+            CeleryDispatcher(create_celery(settings)),
+            runs_per_flow=runs_per_flow,
+            password=os.environ.get("NEXUSFLOW_DEMO_PASSWORD") or None,
+        )
+    except ValidationError as exc:
+        print(
+            f"Error: NEXUSFLOW_DEMO_PASSWORD no cumple la política: {exc.errors()[0]['msg']}",
+            file=sys.stderr,
+        )
+        return 2
+    finally:
+        await engine.dispose()
+
+    print("Usuarios demo (uno por rol):", ", ".join(DEMO_USERS))
+    if report.password_generated:
+        # Se muestra una sola vez; no se guarda en ningún archivo.
+        print(f"Contraseña generada para los usuarios nuevos: {report.password_generated}")
+    print(
+        f"Usuarios creados: {len(report.users_created)} · flujos creados: "
+        f"{len(report.workflows_created)} · credenciales: {len(report.credentials_created)} · "
+        f"ejecuciones lanzadas: {report.runs_started}"
+    )
+    if not report.credentials_created and not os.environ.get("MOCK_PARTNER_CRM_TOKEN"):
+        print("Sin MOCK_PARTNER_*: se omite el flujo de cobro contra la API simulada.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="nexusflow", description="Administración de NexusFlow")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -139,6 +178,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("rotate-credentials", help="Recifra las credenciales con la clave principal")
     export = sub.add_parser("export-openapi", help="Escribe el esquema OpenAPI en un archivo")
     export.add_argument("-o", "--output", default="openapi.json")
+    seed = sub.add_parser("seed-demo", help="Crea datos de demostración (idempotente)")
+    seed.add_argument("--runs", type=int, default=4, help="Ejecuciones por flujo (0-20)")
     args = parser.parse_args(argv)
 
     if args.command == "generate-key":
@@ -150,6 +191,8 @@ def main(argv: list[str] | None = None) -> int:
         return export_openapi(args.output)
     if args.command == "create-admin":
         return asyncio.run(create_admin(args.email, _read_password()))
+    if args.command == "seed-demo":
+        return asyncio.run(seed_demo_command(max(0, min(args.runs, 20))))
     if args.command == "rotate-credentials":
         return asyncio.run(rotate_credentials())
     return 1  # pragma: no cover - argparse ya valida el comando

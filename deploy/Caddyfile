@@ -1,0 +1,8 @@
+# TLS automático (Let's Encrypt) delante del contenedor web.
+# NEXUSFLOW_DOMAIN debe apuntar (DNS A/AAAA) a esta máquina y los puertos 80/443 deben estar abiertos.
+{$NEXUSFLOW_DOMAIN} {
+	encode zstd gzip
+	# HSTS solo tiene sentido con HTTPS real: se añade aquí y no en nginx.
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	reverse_proxy web:8080
+}
