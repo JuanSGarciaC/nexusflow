@@ -60,6 +60,10 @@ class Settings(BaseSettings):
         default=10, ge=1, description="Intentos por 15 minutos y cuenta"
     )
     register_rate_limit_per_ip: int = Field(default=5, ge=1, description="Registros por hora e IP")
+    # Crear ejecuciones es la operación más costosa: se limita por usuario autenticado.
+    run_create_rate_limit_per_user: int = Field(
+        default=120, ge=1, description="Ejecuciones manuales por minuto y usuario"
+    )
 
     # --- Motor de ejecución ---
     # Broker de Celery. Si no se indica, se usa redis_url.

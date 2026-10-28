@@ -8,9 +8,16 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from nexusflow.auth.dependencies import ContextDep, SessionDep, SettingsDep, require_permission
+from nexusflow.auth.dependencies import (
+    ContextDep,
+    RateLimiterDep,
+    SessionDep,
+    SettingsDep,
+    require_permission,
+)
 from nexusflow.auth.models import User
 from nexusflow.auth.permissions import Permission
+from nexusflow.core.rate_limit import RateLimit
 from nexusflow.engine import service
 from nexusflow.engine.dispatch import Dispatcher
 from nexusflow.engine.models import RunStatus, WorkflowRun
@@ -97,6 +104,7 @@ async def detail(session: AsyncSession, run_id: uuid.UUID) -> RunDetail:
         200: {"model": RunDetail, "description": "Ejecución existente (idempotencia)"},
         409: {"description": "Sin versión publicada, archivado o clave reutilizada", **_PROBLEM},
         422: {"description": "Entrada no válida", **_PROBLEM},
+        429: {"description": "Límite de ejecuciones por minuto superado", **_PROBLEM},
     },
 )
 async def create_run(
@@ -108,7 +116,13 @@ async def create_run(
     dispatcher: DispatcherDep,
     context: ContextDep,
     actor: Executor,
+    limiter: RateLimiterDep,
 ) -> RunDetail:
+    # Por usuario y no por IP: un token robado o un script en bucle no puede lanzar
+    # ejecuciones sin límite. La reutilización de idempotency_key también cuenta.
+    await limiter.hit(
+        RateLimit("run_create_user", settings.run_create_rate_limit_per_user, 60), str(actor.id)
+    )
     created = await service.create_run(
         session,
         settings,

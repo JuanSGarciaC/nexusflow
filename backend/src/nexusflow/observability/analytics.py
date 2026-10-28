@@ -202,14 +202,14 @@ async def summarize(
     )
 
     # 4. Intentos de pasos: reintentos, tiempos por tipo y clases de error.
-    attempts_base = (
-        select()
-        .select_from(StepAttempt)
-        .join(StepRun, StepRun.id == StepAttempt.step_run_id)
-        .join(WorkflowRun, WorkflowRun.id == StepRun.run_id)
-        .where(StepAttempt.started_at >= start)
-    )
-    attempts_base = _scoped(attempts_base, workflow_id)
+    # Sin filtro por flujo no hace falta ningún JOIN (step_type está en step_attempts).
+    attempts_base = select().select_from(StepAttempt).where(StepAttempt.started_at >= start)
+    if workflow_id:
+        attempts_base = (
+            attempts_base.join(StepRun, StepRun.id == StepAttempt.step_run_id)
+            .join(WorkflowRun, WorkflowRun.id == StepRun.run_id)
+            .where(WorkflowRun.workflow_id == workflow_id)
+        )
     totals = (
         await session.execute(
             attempts_base.add_columns(
@@ -220,13 +220,13 @@ async def summarize(
 
     per_type = await session.execute(
         attempts_base.add_columns(
-            StepRun.step_type,
+            StepAttempt.step_type,
             func.count(),
             func.count().filter(StepAttempt.outcome == "failed"),
             func.percentile_cont(0.95).within_group(StepAttempt.duration_ms),
         )
-        .group_by(StepRun.step_type)
-        .order_by(StepRun.step_type)
+        .group_by(StepAttempt.step_type)
+        .order_by(StepAttempt.step_type)
     )
     step_types = [
         StepTypeStats(step_type=t, attempts=n, failed_attempts=f, p95_ms=_ms(p95))

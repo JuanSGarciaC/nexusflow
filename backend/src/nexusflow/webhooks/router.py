@@ -175,7 +175,11 @@ async def rotate_trigger_secret(
     return TriggerWithSecret(**_trigger_view(trigger).model_dump(), secret=secret)
 
 
-@router.delete("/triggers/{trigger_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/triggers/{trigger_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar un webhook entrante (su URL deja de aceptar peticiones)",
+)
 async def delete_trigger(
     trigger_id: uuid.UUID, session: SessionDep, context: ContextDep, actor: Manager
 ) -> Response:
@@ -208,12 +212,20 @@ async def create_subscription(
     )
 
 
-@router.get("/webhook-subscriptions", response_model=list[SubscriptionView])
+@router.get(
+    "/webhook-subscriptions",
+    response_model=list[SubscriptionView],
+    summary="Listar suscripciones a eventos (sin secretos)",
+)
 async def list_subscriptions(session: SessionDep, _: Manager) -> list[SubscriptionView]:
     return [SubscriptionView.model_validate(s) for s in await service.list_subscriptions(session)]
 
 
-@router.patch("/webhook-subscriptions/{subscription_id}", response_model=SubscriptionView)
+@router.patch(
+    "/webhook-subscriptions/{subscription_id}",
+    response_model=SubscriptionView,
+    summary="Activar, renombrar o cambiar los eventos de una suscripción",
+)
 async def update_subscription(
     subscription_id: uuid.UUID,
     data: SubscriptionUpdate,
@@ -230,6 +242,7 @@ async def update_subscription(
 
 @router.post(
     "/webhook-subscriptions/{subscription_id}/rotate-secret",
+    summary="Generar un secreto de firma nuevo (se muestra una vez)",
     response_model=SubscriptionWithSecret,
 )
 async def rotate_subscription_secret(
@@ -247,7 +260,11 @@ async def rotate_subscription_secret(
     )
 
 
-@router.delete("/webhook-subscriptions/{subscription_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/webhook-subscriptions/{subscription_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar una suscripción",
+)
 async def delete_subscription(
     subscription_id: uuid.UUID, session: SessionDep, context: ContextDep, actor: Manager
 ) -> Response:

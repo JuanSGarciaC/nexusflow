@@ -126,6 +126,32 @@ def _redact(value: Any, secrets: list[str]) -> Any:
     return value
 
 
+# Cabeceras de respuesta que pueden contener sesiones o credenciales del sistema externo.
+# La salida de un paso la puede leer cualquier usuario con runs:read, así que su valor no
+# se guarda (se conserva el nombre, útil para depurar).
+SENSITIVE_RESPONSE_HEADERS = frozenset(
+    {
+        "set-cookie",
+        "set-cookie2",
+        "authorization",
+        "proxy-authorization",
+        "cookie",
+        "x-api-key",
+        "x-auth-token",
+        "x-amz-security-token",
+    }
+)
+
+
+def safe_response_headers(headers: dict[str, str], secrets: list[str]) -> dict[str, str]:
+    cleaned = {
+        name: (REDACTED if name.lower() in SENSITIVE_RESPONSE_HEADERS else value)
+        for name, value in headers.items()
+    }
+    redacted: dict[str, str] = _redact(cleaned, secrets)
+    return redacted
+
+
 def _snippet(body: Any) -> str:
     text = body if isinstance(body, str) else json.dumps(body, default=str, ensure_ascii=False)
     return text[:300]
@@ -190,7 +216,7 @@ async def _http(step: HttpRequestStep, ctx: ExecutionContext, deps: ExecutorDeps
         )
     output = {
         "status_code": result.status_code,
-        "headers": _redact(result.headers, secrets),
+        "headers": safe_response_headers(dict(result.headers), secrets),
         "body": body_out,
     }
     return StepSuccess(_ensure_size(output, deps.max_output_bytes), step.next)

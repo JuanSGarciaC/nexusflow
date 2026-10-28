@@ -253,3 +253,21 @@ def test_valid_input() -> None:
 def test_invalid_input(data: dict[str, Any]) -> None:
     with pytest.raises(InvalidRunInputError):
         validate_run_input(FIELDS, data)
+
+
+def test_sensitive_response_headers_are_not_stored() -> None:
+    from nexusflow.engine.executors import REDACTED, safe_response_headers
+
+    stored = safe_response_headers(
+        {
+            "Content-Type": "application/json",
+            "Set-Cookie": "session=abc123; HttpOnly",
+            "X-Api-Key": "clave-del-socio",
+            "X-Echo": "contiene token-secreto-xyz",
+        },
+        secrets=["token-secreto-xyz"],
+    )
+    assert stored["Content-Type"] == "application/json"
+    assert stored["Set-Cookie"] == REDACTED
+    assert stored["X-Api-Key"] == REDACTED
+    assert stored["X-Echo"] == f"contiene {REDACTED}"

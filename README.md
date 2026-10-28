@@ -284,6 +284,7 @@ uv run pytest
 | `integration/test_webhooks.py` | Entrada: secreto mostrado una vez, entrada filtrada, **deduplicación con y sin id de evento**, firmas rechazadas (ausente, otra, caducada, cuerpo cambiado), 404 indistinguible, rotación, límite de uso. Salida: **evento firmado verificado por el receptor**, filtros, **el outbox se deshace con el rollback**, reintentos con el mismo `event_id` → dead-letter → reenvío, anti-SSRF, recuperación por barrido |
 | `integration/test_observability.py` | Métricas que reflejan ejecuciones reales (éxitos, fallos, reintentos, clases de error, flujos con más fallos); **percentiles exactos** con duraciones conocidas; ventana y filtro por flujo; canceladas fuera de la tasa de éxito; `/metrics` con token, etiquetas por plantilla de ruta (sin ids); auditoría con filtros, **paginación por cursor sin solapes** y prefijo que no actúa como comodín |
 | `integration/test_workflows_api.py` | Ciclo de vida borrador → publicación → nueva versión, concurrencia optimista (4 guardados simultáneos: 1 gana), **inmutabilidad en la base de datos**, archivo, búsqueda literal, límite de tamaño (413) |
+| `integration/test_authorization_matrix.py` | **Recorre las 46 operaciones del contrato**: sin token, todas salvo 8 públicas declaradas responden 401; ninguna escritura es posible como viewer. Validada con una mutación (quitar un permiso hace fallar la prueba) |
 | `integration/test_demo_seed.py` | Seed idempotente con los cuatro roles, credenciales cifradas solo con tokens de `mock-partner`, rechazo de contraseña débil sin dejar datos a medias |
 | `frontend/src/api/session.test.ts` | **Cinco 401 simultáneos → una sola renovación** (dos con el mismo refresh token cerrarían la sesión por detección de robo), reintento con el token nuevo, sin reintentos en `/auth/`, sin bucles |
 | `frontend/src/test/app.test.tsx` | App completa con rutas reales: login fallido con el error RFC 9457 y su referencia, vuelta a la página pedida, sesión recuperada por cookie, menú y páginas según permisos, publicación bloqueada con incidencias, **conflicto 409 al guardar**, resolución manual solo para quien puede ejecutar |
@@ -453,6 +454,7 @@ entorno: por ejemplo, un secreto de ejemplo con `NEXUSFLOW_ENV=production`.
 | `NEXUSFLOW_COOKIE_SECURE` | No | Cookie solo por HTTPS (`true`; obligatorio en producción) |
 | `NEXUSFLOW_LOGIN_RATE_LIMIT_PER_IP` / `_PER_EMAIL` | No | 20 por minuto / 10 por 15 minutos |
 | `NEXUSFLOW_REGISTER_RATE_LIMIT_PER_IP` | No | 5 por hora |
+| `NEXUSFLOW_RUN_CREATE_RATE_LIMIT_PER_USER` | No | Ejecuciones manuales por minuto y usuario (120) |
 
 Plantillas: [`.env.example`](.env.example) (Docker Compose) y
 [`backend/.env.example`](backend/.env.example) (ejecución local).
@@ -475,7 +477,8 @@ Autenticación y autorización (Fase 2):
 - **Autorización por permisos** en el backend. El registro público ignora cualquier
   campo extra (`extra="forbid"`), así que nadie puede auto-asignarse un rol. Un
   administrador no puede modificarse a sí mismo.
-- **Límites de uso** en Redis: por IP y por cuenta en el login, y por IP en el registro.
+- **Límites de uso** en Redis: por IP y por cuenta en el login, por IP en el registro, por
+  trigger en los webhooks entrantes y por usuario al crear ejecuciones.
   Responden `429` con `Retry-After`. Si Redis no responde, los endpoints de autenticación
   **fallan cerrados** (503) en lugar de permitir fuerza bruta sin límite.
 - **Auditoría** en la misma transacción que el cambio: registro, login correcto o
@@ -546,6 +549,8 @@ Credenciales (Fase 5):
 | [docs/workflow-dsl.md](docs/workflow-dsl.md) | Formato de los flujos: pasos, plantillas, condiciones, incidencias |
 | [docs/api.md](docs/api.md) | Convenciones de la API: autenticación, errores, paginación, idempotencia, firma de webhooks (ejemplos en Python y Node probados) |
 | [docs/deployment.md](docs/deployment.md) | Despliegue en una VM con TLS, copias de seguridad, rotación de secretos, observabilidad y escalado |
+| [docs/security-review.md](docs/security-review.md) | Revisión frente al OWASP API Top 10 (2023): control y prueba que lo respalda en cada punto, y limitaciones aceptadas |
+| [docs/performance.md](docs/performance.md) | Planes y tiempos de las consultas críticas con 50 000 ejecuciones, la optimización aplicada y cuándo dejará de bastar |
 | [docs/adr/](docs/adr/) | 11 decisiones de arquitectura con alternativas descartadas |
 | `/docs` (Swagger) y [backend/openapi.json](backend/openapi.json) | Referencia completa de los endpoints |
 

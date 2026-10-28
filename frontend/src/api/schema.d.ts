@@ -270,7 +270,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Trigger */
+        /** Eliminar un webhook entrante (su URL deja de aceptar peticiones) */
         delete: operations["delete_trigger_api_v1_triggers__trigger_id__delete"];
         options?: never;
         head?: never;
@@ -370,7 +370,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Subscriptions */
+        /** Listar suscripciones a eventos (sin secretos) */
         get: operations["list_subscriptions_api_v1_webhook_subscriptions_get"];
         put?: never;
         /** Suscribir una URL a eventos de ejecuciones (el secreto se muestra una vez) */
@@ -391,11 +391,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Subscription */
+        /** Eliminar una suscripción */
         delete: operations["delete_subscription_api_v1_webhook_subscriptions__subscription_id__delete"];
         options?: never;
         head?: never;
-        /** Update Subscription */
+        /** Activar, renombrar o cambiar los eventos de una suscripción */
         patch: operations["update_subscription_api_v1_webhook_subscriptions__subscription_id__patch"];
         trace?: never;
     };
@@ -442,7 +442,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Rotate Subscription Secret */
+        /** Generar un secreto de firma nuevo (se muestra una vez) */
         post: operations["rotate_subscription_secret_api_v1_webhook_subscriptions__subscription_id__rotate_secret_post"];
         delete?: never;
         options?: never;
@@ -3485,6 +3485,15 @@ export interface operations {
             };
             /** @description Entrada no válida */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Límite de ejecuciones por minuto superado */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

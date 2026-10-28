@@ -5034,7 +5034,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Delete Trigger",
+        "summary": "Eliminar un webhook entrante (su URL deja de aceptar peticiones)",
         "tags": [
           "webhooks"
         ]
@@ -5374,7 +5374,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "List Subscriptions",
+        "summary": "Listar suscripciones a eventos (sin secretos)",
         "tags": [
           "webhooks"
         ]
@@ -5459,7 +5459,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Delete Subscription",
+        "summary": "Eliminar una suscripción",
         "tags": [
           "webhooks"
         ]
@@ -5515,7 +5515,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Update Subscription",
+        "summary": "Activar, renombrar o cambiar los eventos de una suscripción",
         "tags": [
           "webhooks"
         ]
@@ -5697,7 +5697,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Rotate Subscription Secret",
+        "summary": "Generar un secreto de firma nuevo (se muestra una vez)",
         "tags": [
           "webhooks"
         ]
@@ -6187,6 +6187,12 @@
               "application/problem+json": {}
             },
             "description": "Entrada no válida"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "Límite de ejecuciones por minuto superado"
           }
         },
         "security": [
