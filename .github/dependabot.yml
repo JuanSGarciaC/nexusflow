@@ -1,0 +1,27 @@
+# Actualizaciones automáticas de dependencias. Cada PR pasa por el CI completo
+# (pruebas, auditoría y E2E) antes de poder fusionarse.
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /backend
+    schedule: { interval: weekly }
+    groups:
+      python-minor-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm # pnpm usa el ecosistema npm
+    directory: /frontend
+    schedule: { interval: weekly }
+    groups:
+      frontend-minor-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+
+  - package-ecosystem: docker
+    directories: [/backend, /frontend, /mock-partner]
+    schedule: { interval: monthly }
