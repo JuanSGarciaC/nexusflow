@@ -27,5 +27,7 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     css: false,
     restoreMocks: true,
+    // Las pruebas E2E las ejecuta Playwright, no Vitest.
+    exclude: ["e2e/**", "node_modules/**"],
   },
 });

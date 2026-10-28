@@ -9,9 +9,9 @@ trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y 
 en segundo plano con reintentos, timeouts e idempotencia.
 
 > **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fases 1 a 8 completadas** (fundaciones, autenticación y RBAC, definición de flujos,
+> **Fases 1 a 9 completadas:** fundaciones, autenticación y RBAC, definición de flujos,
 > motor de ejecución, credenciales cifradas, webhooks firmados, métricas y auditoría, panel
-> web).
+> web, y E2E con datos de demostración y guía de despliegue.
 > Esta documentación describe solo lo que ya existe y está probado. Lo pendiente aparece en la
 > [hoja de ruta](#hoja-de-ruta).
 
@@ -25,6 +25,7 @@ en segundo plano con reintentos, timeouts e idempotencia.
 - [API](#api)
 - [Configuración](#configuración)
 - [Seguridad](#seguridad)
+- [Documentación](#documentación)
 - [Hoja de ruta](#hoja-de-ruta)
 - [Decisiones técnicas](#decisiones-técnicas)
 
@@ -116,9 +117,16 @@ curl http://127.0.0.1:8000/health/ready
 # 4. Crear el primer administrador (la contraseña se pide por teclado, sin eco)
 docker compose exec api nexusflow create-admin --email admin@example.com
 
-# 5. Abrir el panel
+# 5. (Opcional) Datos de demostración: 4 usuarios (uno por rol), flujos y ejecuciones
+docker compose exec -e NEXUSFLOW_DEMO_PASSWORD="elige-una-clave-larga" api nexusflow seed-demo
+
+# 6. Abrir el panel
 start http://127.0.0.1:3000
 ```
+
+Con el seed puedes entrar como `demo-admin@example.com`, `demo-editor@example.com`,
+`demo-operator@example.com` o `demo-viewer@example.com` (todos con la contraseña elegida)
+para ver qué permite cada rol. Es idempotente: ejecutarlo de nuevo no duplica nada.
 
 En Linux/macOS el primer paso es `cp .env.example .env`.
 
@@ -225,6 +233,27 @@ cd frontend
 pnpm lint; pnpm typecheck; pnpm test; pnpm build
 ```
 
+**E2E (Playwright)** contra el stack completo, con los datos de demostración:
+
+```powershell
+docker compose up -d --build
+docker compose exec -e NEXUSFLOW_DEMO_PASSWORD="demo-clave-larga-2026" api nexusflow seed-demo
+cd frontend
+pnpm exec playwright install chromium     # una vez
+$env:E2E_PASSWORD = "demo-clave-larga-2026"; pnpm e2e
+```
+
+Las 6 pruebas cubren:
+- un operador ejecuta un flujo y ve el resultado del worker;
+- la clave de idempotencia evita duplicados;
+- un editor ve los errores del validador y publica;
+- un viewer solo puede leer, incluso si fuerza la URL;
+- un cambio de rol queda auditado;
+- la sesión sobrevive a una recarga y el logout la invalida en el servidor.
+
+En CI se ejecutan contra nginx + API + worker en Docker y, si fallan, se guarda el informe
+con trazas.
+
 Para ejecutar también las pruebas de integración (PostgreSQL y Redis reales, sin mocks):
 
 ```powershell
@@ -255,6 +284,7 @@ uv run pytest
 | `integration/test_webhooks.py` | Entrada: secreto mostrado una vez, entrada filtrada, **deduplicación con y sin id de evento**, firmas rechazadas (ausente, otra, caducada, cuerpo cambiado), 404 indistinguible, rotación, límite de uso. Salida: **evento firmado verificado por el receptor**, filtros, **el outbox se deshace con el rollback**, reintentos con el mismo `event_id` → dead-letter → reenvío, anti-SSRF, recuperación por barrido |
 | `integration/test_observability.py` | Métricas que reflejan ejecuciones reales (éxitos, fallos, reintentos, clases de error, flujos con más fallos); **percentiles exactos** con duraciones conocidas; ventana y filtro por flujo; canceladas fuera de la tasa de éxito; `/metrics` con token, etiquetas por plantilla de ruta (sin ids); auditoría con filtros, **paginación por cursor sin solapes** y prefijo que no actúa como comodín |
 | `integration/test_workflows_api.py` | Ciclo de vida borrador → publicación → nueva versión, concurrencia optimista (4 guardados simultáneos: 1 gana), **inmutabilidad en la base de datos**, archivo, búsqueda literal, límite de tamaño (413) |
+| `integration/test_demo_seed.py` | Seed idempotente con los cuatro roles, credenciales cifradas solo con tokens de `mock-partner`, rechazo de contraseña débil sin dejar datos a medias |
 | `frontend/src/api/session.test.ts` | **Cinco 401 simultáneos → una sola renovación** (dos con el mismo refresh token cerrarían la sesión por detección de robo), reintento con el token nuevo, sin reintentos en `/auth/`, sin bucles |
 | `frontend/src/test/app.test.tsx` | App completa con rutas reales: login fallido con el error RFC 9457 y su referencia, vuelta a la página pedida, sesión recuperada por cookie, menú y páginas según permisos, publicación bloqueada con incidencias, **conflicto 409 al guardar**, resolución manual solo para quien puede ejecutar |
 
@@ -507,6 +537,18 @@ Credenciales (Fase 5):
   con la consulta del estado del usuario en cada petición.
 - El límite de ventana fija permite hasta el doble del límite en el borde entre ventanas.
 
+## Documentación
+
+| Documento | Contenido |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | Contenedores, módulos, ciclo de una petición, garantías de ejecución |
+| [docs/data-model.md](docs/data-model.md) | Tablas, restricciones e índices, con su motivo |
+| [docs/workflow-dsl.md](docs/workflow-dsl.md) | Formato de los flujos: pasos, plantillas, condiciones, incidencias |
+| [docs/api.md](docs/api.md) | Convenciones de la API: autenticación, errores, paginación, idempotencia, firma de webhooks (ejemplos en Python y Node probados) |
+| [docs/deployment.md](docs/deployment.md) | Despliegue en una VM con TLS, copias de seguridad, rotación de secretos, observabilidad y escalado |
+| [docs/adr/](docs/adr/) | 11 decisiones de arquitectura con alternativas descartadas |
+| `/docs` (Swagger) y [backend/openapi.json](backend/openapi.json) | Referencia completa de los endpoints |
+
 ## Hoja de ruta
 
 | Fase | Contenido | Estado |
@@ -519,7 +561,7 @@ Credenciales (Fase 5):
 | 6 | Webhooks entrantes (HMAC) y salientes (outbox) | ✅ Completada |
 | 7 | Métricas de ejecución, Prometheus y auditoría consultable | ✅ Completada |
 | 8 | Panel web React + TypeScript + Mantine | ✅ Completada |
-| 9 | E2E con Playwright, datos de demostración y guía de despliegue | ⏳ |
+| 9 | E2E con Playwright, datos de demostración y guía de despliegue | ✅ Completada |
 
 ## Decisiones técnicas
 

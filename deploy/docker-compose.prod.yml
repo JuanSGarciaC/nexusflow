@@ -1,0 +1,63 @@
+# Override de producción (una VM con Docker). Uso:
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+#
+# Cambios respecto al stack de desarrollo:
+# - Solo Caddy publica puertos (80/443, con TLS automático). La API y la web dejan de
+#   publicarse en el host: todo el tráfico entra por Caddy → nginx → API.
+# - NEXUSFLOW_ENV=production: la API se niega a arrancar con secretos de ejemplo, CORS "*",
+#   cookies no seguras o salida HTTP a hosts privados.
+# - Documentación de la API y registro público desactivados.
+# - nginx confía en el X-Forwarded-For de Caddy (IP fija) para conocer la IP real.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      NEXUSFLOW_DOMAIN: ${NEXUSFLOW_DOMAIN:?Define NEXUSFLOW_DOMAIN en .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      default:
+        ipv4_address: ${CADDY_INTERNAL_IP:-172.28.0.20}
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    ports: !reset []
+    environment:
+      TRUSTED_PROXY_CIDR: ${CADDY_INTERNAL_IP:-172.28.0.20}/32
+
+  api:
+    ports: !reset []
+    environment:
+      NEXUSFLOW_ENV: production
+      NEXUSFLOW_DOCS_ENABLED: "false"
+      NEXUSFLOW_REGISTRATION_ENABLED: "false"
+      NEXUSFLOW_COOKIE_SECURE: "true"
+      NEXUSFLOW_EGRESS_ALLOW_HTTP: "false"
+      NEXUSFLOW_EGRESS_ALLOWED_PRIVATE_HOSTS: ""
+
+  worker:
+    environment:
+      NEXUSFLOW_ENV: production
+      NEXUSFLOW_EGRESS_ALLOW_HTTP: "false"
+      NEXUSFLOW_EGRESS_ALLOWED_PRIVATE_HOSTS: ""
+
+  beat:
+    environment:
+      NEXUSFLOW_ENV: production
+
+  migrate:
+    environment:
+      NEXUSFLOW_ENV: production
+
+volumes:
+  caddy-data:
+  caddy-config:

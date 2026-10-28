@@ -9,7 +9,12 @@ export function ErrorAlert({ error, title }: { error: unknown; title?: string })
   const apiError = error instanceof ApiError ? error : null;
   return (
     <Alert color="red" icon={<IconAlertTriangle size={18} />} title={title ?? apiError?.title ?? "Error"} role="alert">
-      <Text size="sm">{apiError ? (apiError.detail ?? apiError.title) : String((error as Error).message ?? error)}</Text>
+      {/* El título ya se muestra arriba: el texto solo aparece si aporta algo más. */}
+      {apiError ? (
+        apiError.detail && apiError.detail !== (title ?? apiError.title) && <Text size="sm">{apiError.detail}</Text>
+      ) : (
+        <Text size="sm">{String((error as Error).message ?? error)}</Text>
+      )}
       {apiError && apiError.fieldErrors.length > 0 && (
         <List size="sm" mt="xs">
           {apiError.fieldErrors.map((e, i) => (
