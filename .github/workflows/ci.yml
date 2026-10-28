@@ -64,11 +64,50 @@ jobs:
         run: uv run mypy
       - name: Pytest (unitarias + integración)
         run: uv run pytest
+      - name: Contrato OpenAPI versionado al día
+        # El frontend genera sus tipos desde backend/openapi.json. Si la API cambia y no se
+        # regenera el contrato, el CI falla en lugar de dejar al frontend desincronizado.
+        run: |
+          uv run nexusflow export-openapi -o "$RUNNER_TEMP/openapi.json"
+          diff -u openapi.json "$RUNNER_TEMP/openapi.json"
       - name: Auditoría de dependencias
         run: |
           uv export --no-dev --no-emit-project --format requirements.txt -o "$RUNNER_TEMP/requirements.txt"
           uv run pip-audit -r "$RUNNER_TEMP/requirements.txt" --disable-pip
           uv run pip-audit -r ../mock-partner/requirements.txt --disable-pip
+
+  frontend:
+    name: Frontend (lint, tipos, pruebas, build, auditoría)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Activar pnpm (versión de packageManager)
+        run: corepack enable
+      - name: Instalar dependencias (lockfile estricto)
+        run: pnpm install --frozen-lockfile
+      - name: Tipos generados coinciden con el contrato OpenAPI
+        run: |
+          pnpm gen:api
+          git diff --exit-code -- src/api/schema.d.ts
+      - name: ESLint
+        run: pnpm lint
+      - name: TypeScript
+        run: pnpm typecheck
+      - name: Vitest
+        run: pnpm test
+      - name: Build de producción
+        run: pnpm build
+      - name: Auditoría de dependencias de producción
+        run: pnpm audit --prod --audit-level high
 
   secrets:
     name: Escaneo de secretos
@@ -86,8 +125,8 @@ jobs:
   compose:
     name: Docker Compose (build + smoke test)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: backend
+    timeout-minutes: 20
+    needs: [backend, frontend]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,6 +162,17 @@ jobs:
           curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/no-existe | grep -q 404
           curl -s http://127.0.0.1:8000/no-existe -D - | grep -qi "content-type: application/problem+json"
           test "$(docker compose exec -T api id -u)" = "10001"
+          test "$(docker compose exec -T web id -u)" != "0"
+      - name: Web (nginx) sirve la SPA con CSP y hace de proxy a la API
+        run: |
+          for i in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:3000/ && break; sleep 2; done
+          HEADERS=$(curl -fsS -D - -o /dev/null http://127.0.0.1:3000/workflows)
+          echo "$HEADERS"
+          echo "$HEADERS" | grep -qi "content-security-policy: default-src 'self'; script-src 'self'"
+          echo "$HEADERS" | grep -qi "x-frame-options: DENY"
+          curl -fsS http://127.0.0.1:3000/health/ready | grep -q '"status":"ok"'
+          curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/v1/users/me | grep -q 401
+          curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/metrics | grep -q 404
       - name: Crear administrador e iniciar sesión dentro del stack
         run: |
           ADMIN_PASSWORD="$(openssl rand -hex 16)-Ci"

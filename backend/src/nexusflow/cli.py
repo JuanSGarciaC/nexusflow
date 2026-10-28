@@ -3,6 +3,7 @@
     nexusflow create-admin --email admin@empresa.com
     nexusflow generate-key           # clave Fernet para NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS
     nexusflow rotate-credentials     # vuelve a cifrar todo con la primera clave
+    nexusflow export-openapi -o openapi.json   # contrato de la API para el frontend
 
 El registro público solo crea usuarios `viewer`. El primer administrador se crea con este
 comando, que requiere acceso al servidor: no existe ningún endpoint que permita a un
@@ -99,6 +100,36 @@ async def rotate_credentials() -> int:
     return 0
 
 
+def export_openapi(path: str) -> int:
+    """Escribe el contrato OpenAPI sin conectarse a nada.
+
+    La configuración usa valores de relleno: generar el esquema no abre conexiones ni
+    ejecuta el ciclo de vida de la app. La salida es determinista (claves ordenadas), así el
+    CI puede detectar con un simple diff si el contrato versionado quedó desactualizado.
+    """
+    import json
+    from pathlib import Path
+
+    from nexusflow.core.config import Settings
+    from nexusflow.main import create_app
+
+    placeholder = Settings(
+        _env_file=None,
+        env="development",
+        database_url="postgresql+asyncpg://openapi:openapi@localhost:5432/openapi",
+        redis_url="redis://localhost:6379/0",
+        secret_key="openapi-export-" + "x" * 32,
+        credentials_encryption_keys=generate_key(),
+        docs_enabled=True,
+    )
+    schema = create_app(placeholder).openapi()
+    Path(path).write_text(
+        json.dumps(schema, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    print(f"OpenAPI escrito en {path} ({len(schema['paths'])} rutas)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="nexusflow", description="Administración de NexusFlow")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -106,6 +137,8 @@ def main(argv: list[str] | None = None) -> int:
     admin.add_argument("--email", required=True)
     sub.add_parser("generate-key", help="Genera una clave Fernet para cifrar credenciales")
     sub.add_parser("rotate-credentials", help="Recifra las credenciales con la clave principal")
+    export = sub.add_parser("export-openapi", help="Escribe el esquema OpenAPI en un archivo")
+    export.add_argument("-o", "--output", default="openapi.json")
     args = parser.parse_args(argv)
 
     if args.command == "generate-key":
@@ -113,6 +146,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     configure_logging("WARNING", json_output=False)
+    if args.command == "export-openapi":
+        return export_openapi(args.output)
     if args.command == "create-admin":
         return asyncio.run(create_admin(args.email, _read_password()))
     if args.command == "rotate-credentials":

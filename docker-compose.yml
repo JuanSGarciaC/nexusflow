@@ -1,8 +1,9 @@
 # Stack de desarrollo y demostración de NexusFlow.
 # Uso: copia .env.example a .env, rellena los secretos y ejecuta `docker compose up -d --build`.
 #
-# Solo la API publica un puerto, y únicamente en 127.0.0.1. PostgreSQL y Redis quedan
-# dentro de la red interna de compose.
+# La web (http://127.0.0.1:3000) sirve el panel y hace de proxy hacia la API en el mismo
+# origen. La API también se publica en 127.0.0.1:8000 (Swagger, CLI y pruebas de CI).
+# Todos los puertos escuchan solo en 127.0.0.1; PostgreSQL y Redis no se publican.
 
 name: nexusflow
 
@@ -72,13 +73,33 @@ services:
 
   api:
     image: nexusflow-backend:local
-    environment: *backend-env
+    environment:
+      <<: *backend-env
+      # Solo se confía en X-Forwarded-For si viene del contenedor web (IP fija). Así nadie
+      # puede falsificar su IP para saltarse los límites de uso o ensuciar la auditoría.
+      FORWARDED_ALLOW_IPS: ${WEB_INTERNAL_IP:-172.28.0.10}
+    networks: [default]
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Panel web: build de la SPA servido por nginx sin privilegios, con CSP y proxy a la API.
+  web:
+    build:
+      context: ./frontend
+    image: nexusflow-web:local
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:8080"
+    networks:
+      default:
+        ipv4_address: ${WEB_INTERNAL_IP:-172.28.0.10}
+    depends_on:
+      api:
         condition: service_healthy
     restart: unless-stopped
 
@@ -124,6 +145,12 @@ services:
     ports:
       - "127.0.0.1:${MOCK_PARTNER_PORT:-8080}:8080"
     restart: unless-stopped
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${COMPOSE_SUBNET:-172.28.0.0/16}
 
 volumes:
   postgres-data:

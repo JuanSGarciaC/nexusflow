@@ -14,7 +14,7 @@ historial completo, reintentos seguros y webhooks.
 ```mermaid
 flowchart TB
     subgraph Clientes
-        ui[Panel web React<br/><i>planificado · Fase 8</i>]
+        ui[Panel web React<br/>nginx · mismo origen]
         ext[Sistemas externos]
     end
 
@@ -41,6 +41,7 @@ flowchart TB
 
 | Proceso | Responsabilidad | Escala por |
 |---|---|---|
+| `web` | nginx sin privilegios: SPA, CSP y proxy de `/api` al mismo origen | Peticiones por segundo (estático) |
 | `api` | HTTP, validación, autorización, encolado | Peticiones por segundo |
 | `worker` | Ejecución de pasos y llamadas externas | Trabajos pendientes / latencia externa |
 | `beat` | Recuperar ejecuciones colgadas, reenviar el outbox | No escala (una instancia) |
