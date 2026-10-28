@@ -1,0 +1,15 @@
+# Configuración de gitleaks (CI: gitleaks-action, gitleaks 8.24.x).
+# Se usan todas las reglas por defecto y solo se excluye el código de pruebas: contiene
+# secretos FICTICIOS a propósito, para verificar que el motor los cifra y los redacta de
+# logs, respuestas y auditoría. El código de la aplicación y la documentación se escanean.
+title = "nexusflow"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Secretos ficticios de las pruebas de redacción y cifrado"
+paths = [
+  '''^backend/tests/''',
+  '''^frontend/src/test/''',
+]

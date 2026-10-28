@@ -245,7 +245,12 @@ class Engine:
                 seconds=step.timeout_seconds + self._settings.step_lease_grace_seconds
             )
             session.add(
-                StepAttempt(step_run_id=step.id, attempt_number=step.attempt_count, started_at=now)
+                StepAttempt(
+                    step_run_id=step.id,
+                    attempt_number=step.attempt_count,
+                    started_at=now,
+                    step_type=step.step_type,
+                )
             )
             claim = Claim(run.id, step.id, step.step_id, step.attempt_count, now)
             await session.commit()

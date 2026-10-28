@@ -170,3 +170,22 @@ def test_run_filters(api: TestClient, users: dict[str, dict[str, str]]) -> None:
     assert pending["total"] == 2
     done = api.get("/api/v1/runs", params={"status": "succeeded"}, headers=users["viewer"]).json()
     assert done["total"] == 0
+
+
+def test_run_creation_is_rate_limited_per_user(dispatcher: RecordingDispatcher) -> None:
+    app = create_app(integration_settings(run_create_rate_limit_per_user=3), dispatcher=dispatcher)
+    with TestClient(app, base_url="https://testserver") as api:
+        create_user("ed@example.com", Role.EDITOR)
+        create_user("op1@example.com", Role.OPERATOR)
+        create_user("op2@example.com", Role.OPERATOR)
+        editor = login_headers(api, "ed@example.com")
+        workflow_id = _published(api, editor)
+        op1 = login_headers(api, "op1@example.com")
+        url = f"/api/v1/workflows/{workflow_id}/runs"
+        codes = [
+            api.post(url, json={"input": {"amount": i}}, headers=op1).status_code for i in range(4)
+        ]
+        assert codes == [202, 202, 202, 429]
+        # El límite es por usuario: otro operador no se ve afectado.
+        op2 = login_headers(api, "op2@example.com")
+        assert api.post(url, json={"input": {"amount": 1}}, headers=op2).status_code == 202

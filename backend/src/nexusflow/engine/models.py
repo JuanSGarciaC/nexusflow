@@ -220,6 +220,10 @@ class StepAttempt(Base):
         ForeignKey("step_runs.id", ondelete="CASCADE"), nullable=False
     )
     attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Copia de step_runs.step_type (inmutable): las métricas por tipo de paso se agregan sin
+    # JOIN. Medido con 150 000 intentos (mediana de 5): 24 h, de 50 a 7 ms; 30 días, de 234 a
+    # 117 ms (docs/performance.md).
+    step_type: Mapped[str] = mapped_column(String(20), nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     duration_ms: Mapped[int | None] = mapped_column(Integer)

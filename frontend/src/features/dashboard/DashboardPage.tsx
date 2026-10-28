@@ -40,7 +40,8 @@ export function DashboardPage() {
     queryKey: ["metrics", windowHours],
     queryFn: () =>
       unwrap(api.GET("/api/v1/metrics/summary", { params: { query: { window_hours: Number(windowHours) } } })),
-    refetchInterval: 15_000,
+    // Ventanas largas cambian poco y su consulta es más costosa: se refrescan con menos frecuencia.
+    refetchInterval: windowHours === "24" ? 15_000 : 60_000,
   });
   const m = summary.data;
   const hourly = m?.bucket === "hour";

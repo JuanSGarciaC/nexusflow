@@ -102,6 +102,8 @@ erDiagram
         bigint id PK
         uuid step_run_id FK
         int attempt_number "UNIQUE con step_run_id"
+        varchar step_type "copia inmutable (métricas sin JOIN)"
+        timestamptz started_at "índice"
         varchar outcome "succeeded|failed|abandoned|stale"
         varchar error_class
         int http_status
@@ -162,6 +164,7 @@ erDiagram
 | `version_id` con `RESTRICT` | Cada ejecución apunta a la versión exacta (inmutable) que ejecutó. |
 | Índice parcial `ix_step_runs_dispatch` | El barrido solo recorre pasos activos, no el historial completo. |
 | `step_attempts` separado de `step_runs` | Historial completo de cada intento sin sobrescribir el anterior. |
+| `step_attempts.step_type` copiado de `step_runs` | Desnormalización segura: el tipo de un paso nunca cambia. Las métricas por tipo se agregan sin `JOIN` (de 50 a 7 ms con 150 000 intentos; ver [performance.md](performance.md)). |
 | `credentials.secret_encrypted` sin columna en claro | El secreto solo existe cifrado; `key_fingerprint` permite saber qué filas faltan por rotar. |
 | `webhook_deliveries` como outbox | Se inserta en la misma transacción que el cambio de estado (hook `before_flush`). |
 | Deduplicación de entrada sin tabla propia | Reutiliza el índice único de idempotencia de `workflow_runs`. |

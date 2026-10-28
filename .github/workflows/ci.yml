@@ -62,8 +62,8 @@ jobs:
         run: uv run ruff check ../mock-partner ../scripts && uv run ruff format --check ../mock-partner ../scripts
       - name: Mypy (strict)
         run: uv run mypy
-      - name: Pytest (unitarias + integración)
-        run: uv run pytest
+      - name: Pytest (unitarias + integración, cobertura ≥ 85 %)
+        run: uv run pytest --cov --cov-report=term
       - name: Contrato OpenAPI versionado al día
         # El frontend genera sus tipos desde backend/openapi.json. Si la API cambia y no se
         # regenera el contrato, el CI falla en lugar de dejar al frontend desincronizado.
