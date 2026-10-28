@@ -23,6 +23,8 @@ class AuditLog(Base):
         Index("ix_audit_log_occurred_at", "occurred_at"),
         Index("ix_audit_log_actor_user_id", "actor_user_id"),
         Index("ix_audit_log_action", "action"),
+        # "Todo lo que pasó con este recurso": filtro habitual del registro de auditoría.
+        Index("ix_audit_log_resource", "resource_type", "resource_id"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

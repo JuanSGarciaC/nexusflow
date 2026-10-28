@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
 from nexusflow import __version__
+from nexusflow.audit.router import router as audit_router
 from nexusflow.auth.router import auth_router, users_router
 from nexusflow.core.config import Settings, get_settings
 from nexusflow.core.errors import register_error_handlers
@@ -22,7 +23,9 @@ from nexusflow.engine.dispatch import CeleryDispatcher, Dispatcher
 from nexusflow.engine.router import router as runs_router
 from nexusflow.integrations.crypto import CredentialCipher
 from nexusflow.integrations.router import router as credentials_router
-from nexusflow.observability import health
+from nexusflow.observability import analytics, health
+from nexusflow.observability.prometheus import AppMetrics, PrometheusMiddleware
+from nexusflow.observability.prometheus import router as prometheus_router
 from nexusflow.webhooks.router import inbound_router as hooks_router
 from nexusflow.webhooks.router import router as webhooks_router
 from nexusflow.workflows.router import router as workflows_router
@@ -68,6 +71,7 @@ def create_app(settings: Settings | None = None, dispatcher: Dispatcher | None =
         openapi_url="/openapi.json" if docs else None,
     )
     app.state.settings = settings
+    app.state.metrics = AppMetrics()
 
     register_error_handlers(app)
 
@@ -81,6 +85,7 @@ def create_app(settings: Settings | None = None, dispatcher: Dispatcher | None =
             expose_headers=["X-Request-ID", "Retry-After"],
         )
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_body_bytes)
+    app.add_middleware(PrometheusMiddleware, metrics=app.state.metrics)
     # Añadido al final para ser el middleware más externo: todo log lleva request_id.
     app.add_middleware(RequestContextMiddleware)
 
@@ -92,6 +97,9 @@ def create_app(settings: Settings | None = None, dispatcher: Dispatcher | None =
     app.include_router(credentials_router)
     app.include_router(webhooks_router)
     app.include_router(hooks_router)
+    app.include_router(analytics.router)
+    app.include_router(audit_router)
+    app.include_router(prometheus_router)
     return app
 
 

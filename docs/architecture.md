@@ -60,13 +60,13 @@ api (routers, esquemas HTTP)  →  services (casos de uso)  →  repositories (S
 |---|---|---|
 | `core` | ✅ | Configuración, logging, errores, middleware, límites de uso |
 | `db` | ✅ | Base declarativa con convención de nombres, sesiones async |
-| `observability` | ✅ parcial | Health checks (métricas en la Fase 7) |
+| `observability` | ✅ | Health checks, métricas de ejecución (PostgreSQL) y `/metrics` (Prometheus) |
 | `auth` | ✅ | Usuarios, contraseñas, tokens, permisos, endpoints |
 | `workflows` | ✅ | DSL, validación del grafo, versiones inmutables, endpoints |
 | `engine` | ✅ | Máquinas de estado, runner (reclamo/lease), barrido, cliente HTTP anti-SSRF, Celery |
 | `integrations` | ✅ | Credenciales cifradas (Fernet), adaptadores de autenticación, resolución en el worker |
 | `webhooks` | ✅ | Firma HMAC, triggers entrantes, outbox transaccional, entregas con dead-letter |
-| `audit` | ✅ escritura | Registro de acciones sensibles (la consulta llega en la Fase 7) |
+| `audit` | ✅ | Registro de acciones sensibles y consulta con filtros y paginación por cursor |
 
 ## 4. Ciclo de una petición (implementado)
 
