@@ -31,3 +31,6 @@ test-results/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Copias de seguridad locales (scripts/backup.sh)
+backups/
