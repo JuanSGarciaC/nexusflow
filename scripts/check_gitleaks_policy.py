@@ -96,8 +96,11 @@ def check_canaries() -> list[str]:
         (
             "los tres valores de ejemplo públicos",
             {
-                ".env.example": 'JWT_SECRET="change-me-jwt-secret"\nPASSWORD="demo-clave-larga-2026"\n'
-                'DB_PASSWORD="ci-only-password"\n'
+                ".env.example": (
+                    'JWT_SECRET="change-me-jwt-secret"\n'
+                    'PASSWORD="demo-clave-larga-2026"\n'
+                    'DB_PASSWORD="ci-only-password"\n'
+                )
             },
             0,
         ),
