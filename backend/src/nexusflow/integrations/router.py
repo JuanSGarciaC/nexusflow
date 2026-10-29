@@ -7,7 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
 
-from nexusflow.auth.dependencies import ContextDep, SessionDep, require_permission
+from nexusflow.auth.dependencies import ContextDep, SessionDep, limit_writes, require_permission
 from nexusflow.auth.models import User
 from nexusflow.auth.permissions import Permission
 from nexusflow.integrations import service
@@ -20,7 +20,9 @@ from nexusflow.integrations.schemas import (
     CredentialView,
 )
 
-router = APIRouter(prefix="/api/v1/credentials", tags=["credentials"])
+router = APIRouter(
+    prefix="/api/v1/credentials", tags=["credentials"], dependencies=[Depends(limit_writes)]
+)
 _PROBLEM: dict[str, object] = {"content": {"application/problem+json": {}}}
 Manager = Annotated[User, Depends(require_permission(Permission.CREDENTIALS_MANAGE))]
 
