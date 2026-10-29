@@ -21,6 +21,22 @@ comprueba**: una afirmación sin prueba automatizada no cuenta como control.
 - **Secretos.** Gitleaks revisa todo el historial en CI. La única excepción son los
   directorios de pruebas, que contienen secretos ficticios a propósito
   ([`.gitleaks.toml`](../.gitleaks.toml)). Ningún `.env` está en el historial (comprobado).
+  - **Valores de ejemplo permitidos.** Además de esos directorios, la configuración admite
+    solo tres *valores* (no archivos): `change-me-*` (placeholders de `.env.example`),
+    `demo-clave-larga-2026` (contraseña de la demo) y `ci-only-password` (Postgres efímero
+    del CI). Cualquier otro secreto, en cualquier ruta fuera de las de pruebas, se detecta.
+  - **Guarda contra la erosión de la excepción.** El riesgo no es solo que alguien suba un
+    secreto, sino que alguien «arregle» un falso positivo ensanchando la allowlist.
+    [`scripts/check_gitleaks_policy.py`](../scripts/check_gitleaks_policy.py) corre en el
+    CI y falla si (1) las rutas o valores permitidos difieren de la lista esperada, o
+    (2) los *canarios* no se comportan: un token con formato real (generado al vuelo, sin
+    literal en el repo) debe detectarse en `backend/src/` y `docs/`, y quedar ignorado
+    solo dentro de `backend/tests/` y `frontend/src/test/`. Se ejecuta en modo git, como el
+    CI, porque con `--no-git` las rutas llevan prefijo y la regla `^backend/tests/` no
+    casaría. Trade-off: ampliar la excepción exige editar el script y este documento en el
+    mismo PR, a propósito. Limitación: los canarios prueban el *comportamiento de la
+    configuración*, no sustituyen al escaneo del historial real, que sigue haciéndolo
+    gitleaks-action.
 - **Cadena de suministro.** Lockfiles con hashes (`uv.lock`, `pnpm-lock.yaml`);
   `pip-audit` y `pnpm audit` en CI; GitHub Actions fijadas por SHA de commit.
 - **IP del cliente.** Cada salto solo confía en `X-Forwarded-For` si viene del salto

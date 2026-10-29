@@ -125,6 +125,8 @@ jobs:
       - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Política de gitleaks (la excepción no se amplía y los canarios saltan)
+        run: python3 scripts/check_gitleaks_policy.py
 
   compose:
     name: Docker Compose (build + smoke test)
