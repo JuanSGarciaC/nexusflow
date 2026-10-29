@@ -102,3 +102,37 @@ test("la sesión sobrevive a una recarga y el logout la cierra en el servidor", 
   const status = await page.evaluate(async () => (await fetch("/api/v1/auth/refresh", { method: "POST" })).status);
   expect(status).toBe(401);
 });
+
+test("editor programa un flujo: la tarea recurrente aparece, se pausa y se elimina", async ({ page }) => {
+  await loginAs(page, "editor", "/workflows");
+  await page.getByRole("link", { name: CLASSIFIER }).click();
+  await page.getByRole("tab", { name: "Programaciones" }).click();
+  // La programación de demostración creada por `seed-demo`.
+  await expect(page.getByText("Demo · Pedidos de cada día laborable")).toBeVisible();
+
+  const name = `E2E cron ${Date.now()}`;
+  await page.getByRole("button", { name: "Nueva programación" }).click();
+  await page.getByLabel("Nombre").fill(name);
+  await page.getByLabel("Expresión cron").fill("esto no es cron");
+  await page.getByLabel("Entrada (JSON)").fill(JSON.stringify({ order_id: "E2E-C", amount: 5, country: "ES" }));
+  await page.getByRole("button", { name: "Crear programación" }).click();
+  await expect(page.getByText(/cron/i).last()).toBeVisible(); // el servidor rechaza la expresión (422)
+
+  await page.getByLabel("Expresión cron").fill("0 3 * * *");
+  await page.getByRole("button", { name: "Crear programación" }).click();
+  const row = page.getByRole("row", { name: new RegExp(name) });
+  await expect(row).toBeVisible();
+  await expect(row.getByText("0 3 * * *")).toBeVisible();
+
+  await row.locator(".mantine-Switch-track").click(); // pausar (el input real queda bajo la pista)
+  await expect(row.getByRole("switch")).not.toBeChecked();
+  await row.getByRole("button", { name: `Eliminar ${name}` }).click();
+  await expect(page.getByRole("row", { name: new RegExp(name) })).toHaveCount(0);
+});
+
+test("el operador no ve la pestaña de programaciones", async ({ page }) => {
+  await loginAs(page, "operator", "/workflows");
+  await page.getByRole("link", { name: CLASSIFIER }).click();
+  await expect(page.getByRole("tab", { name: "Definición" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Programaciones" })).toHaveCount(0);
+});

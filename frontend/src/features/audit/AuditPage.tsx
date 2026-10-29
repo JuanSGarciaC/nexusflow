@@ -59,7 +59,7 @@ export function AuditPage() {
                 </Text>
               </Table.Td>
               <Table.Td>
-                <Text size="xs" ff="monospace" lineClamp={2}>
+                <Text size="xs" ff="monospace" lineClamp={2} maw={380} style={{ overflowWrap: "anywhere" }}>
                   {Object.keys(e.details).length ? JSON.stringify(e.details) : ""}
                 </Text>
               </Table.Td>
