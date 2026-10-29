@@ -12,7 +12,7 @@ COPY . .
 RUN pnpm build
 
 # ---- Etapa 2: nginx sin privilegios (escucha en 8080, usuario no root) ----
-FROM nginxinc/nginx-unprivileged:1.28-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.31-alpine AS runtime
 ENV API_UPSTREAM=api:8000 \
     TRUSTED_PROXY_CIDR=127.0.0.1/32
 COPY --from=build /app/dist /usr/share/nginx/html
