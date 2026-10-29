@@ -23,16 +23,21 @@ failed=0
 check() { # descripción, valor, esperado
   if [ "$2" = "$3" ]; then echo "  ok   $1 = $2"; else echo "  FALLA $1 = $2 (esperado $3)" >&2; failed=1; fi
 }
-check "ejecuciones sin terminar" "$open" 0
+check "ejecuciones sin terminar (todas)" "$open" 0
 check "ejecuciones que no acabaron en 'succeeded'" \
   "$(q "SELECT count(*) FROM workflow_runs wr JOIN workflows w ON w.id = wr.workflow_id
         WHERE w.name LIKE 'carga-%' AND wr.status <> 'succeeded'")" 0
-check "pasos con más de un intento (ejecución doble)" \
-  "$(q "SELECT count(*) FROM (SELECT step_run_id FROM step_attempts
-        GROUP BY 1 HAVING count(*) > 1) t")" 0
-check "pasos duplicados dentro de una misma ejecución" \
-  "$(q "SELECT count(*) FROM (SELECT run_id, step_id FROM step_runs
-        GROUP BY 1, 2 HAVING count(*) > 1) t")" 0
+# Solo los flujos de la carga (carga-%): los de demostración reintentan a propósito
+# (endpoints "flaky" del mock-partner) y tienen legítimamente varios intentos.
+check "pasos con más de un intento (ejecución doble)"   "$(q "SELECT count(*) FROM (SELECT a.step_run_id FROM step_attempts a
+        JOIN step_runs s ON s.id = a.step_run_id
+        JOIN workflow_runs wr ON wr.id = s.run_id
+        JOIN workflows w ON w.id = wr.workflow_id
+        WHERE w.name LIKE 'carga-%' GROUP BY 1 HAVING count(*) > 1) t")" 0
+check "pasos duplicados dentro de una misma ejecución"   "$(q "SELECT count(*) FROM (SELECT s.run_id, s.step_id FROM step_runs s
+        JOIN workflow_runs wr ON wr.id = s.run_id
+        JOIN workflows w ON w.id = wr.workflow_id
+        WHERE w.name LIKE 'carga-%' GROUP BY 1, 2 HAVING count(*) > 1) t")" 0
 echo "Ejecuciones de la prueba de carga: $(q "SELECT count(*) FROM workflow_runs wr JOIN workflows w
   ON w.id = wr.workflow_id WHERE w.name LIKE 'carga-%'")"
 exit "$failed"
