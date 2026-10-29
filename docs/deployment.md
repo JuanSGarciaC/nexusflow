@@ -138,6 +138,11 @@ docker compose start api worker beat
   Alertas recomendadas: `nexusflow_webhook_deliveries_open{status="dead"} > 0`,
   `nexusflow_steps_active{status="needs_review"} > 0`, y la tasa de 5xx en
   `nexusflow_http_requests_total`.
+- **Programaciones cron**: las dispara `beat` (a través de la tarea de barrido, cada 15 s).
+  **Si `beat` está parado, no se ejecuta ninguna programación**; vigílalo igual que al worker.
+  Tras una caída, los disparos con más de 5 minutos de retraso
+  (`NEXUSFLOW_SCHEDULE_MISFIRE_GRACE_SECONDS`) se omiten y quedan anotados en el último error
+  de cada programación.
 - **Health checks**: `/health/live` para reinicios, `/health/ready` para balanceadores.
 
 ## 8. Lista de comprobación de seguridad

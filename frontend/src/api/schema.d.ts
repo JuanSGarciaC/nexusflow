@@ -260,6 +260,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/schedules/{schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Eliminar una programación */
+        delete: operations["delete_schedule_api_v1_schedules__schedule_id__delete"];
+        options?: never;
+        head?: never;
+        /** Cambiar horario, entrada o pausar/reanudar */
+        patch: operations["update_schedule_api_v1_schedules__schedule_id__patch"];
+        trace?: never;
+    };
     "/api/v1/triggers/{trigger_id}": {
         parameters: {
             query?: never;
@@ -554,6 +572,27 @@ export interface paths {
          * @description Crea la ejecución y la encola (202). Con `idempotency_key`, repetir la petición con la misma entrada devuelve la ejecución existente (200) en lugar de crear otra.
          */
         post: operations["create_run_api_v1_workflows__workflow_id__runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflows/{workflow_id}/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Programaciones de un flujo */
+        get: operations["list_schedules_api_v1_workflows__workflow_id__schedules_get"];
+        put?: never;
+        /**
+         * Programar un flujo con una expresión cron
+         * @description Cron de 5 campos evaluado en la zona horaria indicada. Cada disparo crea una ejecución con la última versión publicada. Si el servicio estuvo caído, los disparos perdidos que superen el margen de gracia se omiten, no se recuperan.
+         */
+        post: operations["create_schedule_api_v1_workflows__workflow_id__schedules_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1451,6 +1490,86 @@ export interface components {
              * Format: uuid
              */
             version_id: string;
+            /**
+             * Workflow Id
+             * Format: uuid
+             */
+            workflow_id: string;
+        };
+        /** ScheduleCreate */
+        ScheduleCreate: {
+            /**
+             * Cron Expression
+             * @description Cron de 5 campos: minuto hora día-del-mes mes día-de-la-semana
+             * @example *\/15 * * * *
+             * @example 0 9 * * 1-5
+             */
+            cron_expression: string;
+            /** Input */
+            input?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Timezone
+             * @default UTC
+             * @example Europe/Madrid
+             */
+            timezone: string;
+        };
+        /** ScheduleUpdate */
+        ScheduleUpdate: {
+            /** Cron Expression */
+            cron_expression?: string | null;
+            /** Input */
+            input?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Timezone */
+            timezone?: string | null;
+        };
+        /** ScheduleView */
+        ScheduleView: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Cron Expression */
+            cron_expression: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Input */
+            input: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Is Active */
+            is_active: boolean;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Run At */
+            last_run_at: string | null;
+            /** Last Run Id */
+            last_run_id: string | null;
+            /** Name */
+            name: string;
+            /** Next Run At */
+            next_run_at: string | null;
+            /** Timezone */
+            timezone: string;
             /**
              * Workflow Id
              * Format: uuid
@@ -2724,6 +2843,70 @@ export interface operations {
             };
         };
     };
+    delete_schedule_api_v1_schedules__schedule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_schedule_api_v1_schedules__schedule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_trigger_api_v1_triggers__trigger_id__delete: {
         parameters: {
             query?: never;
@@ -3499,6 +3682,72 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    list_schedules_api_v1_workflows__workflow_id__schedules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_schedule_api_v1_workflows__workflow_id__schedules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

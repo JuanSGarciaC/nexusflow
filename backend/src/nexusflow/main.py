@@ -26,6 +26,7 @@ from nexusflow.integrations.router import router as credentials_router
 from nexusflow.observability import analytics, health
 from nexusflow.observability.prometheus import AppMetrics, PrometheusMiddleware
 from nexusflow.observability.prometheus import router as prometheus_router
+from nexusflow.schedules.router import router as schedules_router
 from nexusflow.webhooks.router import inbound_router as hooks_router
 from nexusflow.webhooks.router import router as webhooks_router
 from nexusflow.workflows.router import router as workflows_router
@@ -95,6 +96,7 @@ def create_app(settings: Settings | None = None, dispatcher: Dispatcher | None =
     app.include_router(workflows_router)
     app.include_router(runs_router)
     app.include_router(credentials_router)
+    app.include_router(schedules_router)
     app.include_router(webhooks_router)
     app.include_router(hooks_router)
     app.include_router(analytics.router)

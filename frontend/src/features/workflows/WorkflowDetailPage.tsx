@@ -13,6 +13,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { formatDate } from "../../lib/format";
 import { RunTable } from "../runs/RunTable";
 import { IssuesList } from "./IssuesList";
+import { SchedulesTab } from "./SchedulesTab";
 import { parseJson, pretty } from "./templates";
 
 type DefinitionIn = Schemas["WorkflowDefinition-Input"];
@@ -243,6 +244,7 @@ export function WorkflowDetailPage() {
           <Tabs.Tab value="versions">Versiones</Tabs.Tab>
           {can("workflows:execute") && w.status === "active" && <Tabs.Tab value="run">Ejecutar</Tabs.Tab>}
           <Tabs.Tab value="runs">Ejecuciones</Tabs.Tab>
+          {can("schedules:manage") && <Tabs.Tab value="schedules">Programaciones</Tabs.Tab>}
           {w.published && <Tabs.Tab value="published">Publicada</Tabs.Tab>}
         </Tabs.List>
         <Tabs.Panel value="definition">
@@ -258,6 +260,9 @@ export function WorkflowDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="runs">
           <RunTable workflowId={w.id} />
+        </Tabs.Panel>
+        <Tabs.Panel value="schedules">
+          <SchedulesTab workflowId={w.id} canRun={w.status === "active"} />
         </Tabs.Panel>
         <Tabs.Panel value="published">{w.published && <JsonView value={w.published.definition} maxHeight={600} />}</Tabs.Panel>
       </Tabs>

@@ -37,7 +37,7 @@ export const ADMIN_ME = {
   last_login_at: null,
   permissions: [
     "audit:read", "credentials:manage", "metrics:read", "runs:read", "users:manage", "users:read",
-    "webhooks:manage", "workflows:execute", "workflows:read", "workflows:write",
+    "schedules:manage", "webhooks:manage", "workflows:execute", "workflows:read", "workflows:write",
   ],
 };
 

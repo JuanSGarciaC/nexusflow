@@ -38,6 +38,7 @@ from nexusflow.engine.executors import CredentialResolver, ExecutorDeps
 from nexusflow.engine.runner import Engine
 from nexusflow.integrations.crypto import CredentialCipher
 from nexusflow.integrations.service import DbCredentialResolver
+from nexusflow.schedules.service import ScheduleFirer
 from nexusflow.webhooks.delivery import WebhookDeliverer
 
 T = TypeVar("T")
@@ -58,6 +59,7 @@ class WorkerRuntime:
         self._resolve_credential = resolve_credential
         self._engine: Engine | None = None
         self.deliverer: WebhookDeliverer | None = None
+        self.scheduler: ScheduleFirer | None = None
         self._closers: list[Callable[[], Awaitable[None]]] = []
 
     async def _build(self) -> Engine:
@@ -70,6 +72,7 @@ class WorkerRuntime:
         self.deliverer = WebhookDeliverer(
             sessions, self.settings, http, egress_policy(self.settings), cipher, self._dispatcher
         )
+        self.scheduler = ScheduleFirer(sessions, self.settings, self._dispatcher)
         return Engine(
             sessions,
             self.settings,
@@ -92,6 +95,12 @@ class WorkerRuntime:
             self._engine = self.loop.run_until_complete(self._build())
         assert self.deliverer is not None  # noqa: S101  # creado en _build
         return self.loop.run_until_complete(operation(self.deliverer))
+
+    def run_scheduler(self, operation: Callable[[ScheduleFirer], Awaitable[T]]) -> T:
+        if self._engine is None:
+            self._engine = self.loop.run_until_complete(self._build())
+        assert self.scheduler is not None  # noqa: S101  # creado en _build
+        return self.loop.run_until_complete(operation(self.scheduler))
 
     def close(self) -> None:
         for closer in self._closers:
@@ -118,7 +127,10 @@ def register_tasks(app: Celery, runtime: Callable[[], WorkerRuntime]) -> None:
     def sweep() -> dict[str, int]:
         report = runtime().run(lambda engine: engine.sweep())
         deliveries, recovered = runtime().run_deliverer(lambda d: d.sweep())
+        schedules = runtime().run_scheduler(lambda s: s.sweep())
         return {
+            "schedules_fired": schedules.fired,
+            "schedules_skipped": schedules.skipped,
             "dispatched": report.dispatched,
             "recovered": report.recovered,
             "timed_out": report.timed_out,

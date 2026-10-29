@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { setAccessToken } from "../api/session";
-import { ADMIN_ME, VIEWER_ME, installFakeApi, json } from "./fakeApi";
+import { ADMIN_ME, VIEWER_ME, installFakeApi, json, type Handler } from "./fakeApi";
 import { renderApp } from "./render";
 
 const EMPTY_METRICS = {
@@ -35,7 +35,7 @@ const EMPTY_METRICS = {
   ],
 };
 
-function loggedInAs(me: typeof ADMIN_ME, extra: Record<string, (r: Request) => Response> = {}) {
+function loggedInAs(me: typeof ADMIN_ME, extra: Record<string, Handler> = {}) {
   return installFakeApi({
     "POST /api/v1/auth/refresh": () => json({ access_token: "tok", token_type: "bearer", expires_in: 900 }),
     "GET /api/v1/users/me": () => json(me),
@@ -173,6 +173,90 @@ describe("editor de flujos", () => {
     expect(await screen.findByText("Otra persona guardó cambios")).toBeInTheDocument();
     // Se envió la revisión que se estaba editando: el servidor puede detectar el conflicto.
     expect(api.calls.some((c) => c.method === "PUT")).toBe(true);
+  });
+});
+
+describe("programaciones", () => {
+  const SCHEDULE_ID = "77777777-7777-4777-8777-777777777777";
+  const schedule = (over: Record<string, unknown> = {}) => ({
+    id: SCHEDULE_ID,
+    workflow_id: WF_ID,
+    name: "Cierre diario",
+    cron_expression: "0 9 * * 1-5",
+    timezone: "Europe/Madrid",
+    input: {},
+    is_active: true,
+    next_run_at: "2026-10-29T08:00:00Z",
+    last_run_at: null,
+    last_run_id: null,
+    last_error: "Falta la entrada obligatoria region",
+    created_at: "2026-10-28T09:00:00Z",
+    ...over,
+  });
+  const published = workflow(null);
+
+  it("lista las programaciones, muestra el último error y permite pausar", async () => {
+    const api = loggedInAs(ADMIN_ME, {
+      [`GET /api/v1/workflows/${WF_ID}`]: () => json(published),
+      [`GET /api/v1/workflows/${WF_ID}/schedules`]: () => json([schedule()]),
+      [`PATCH /api/v1/schedules/${SCHEDULE_ID}`]: () => json(schedule({ is_active: false })),
+    });
+    renderApp(`/workflows/${WF_ID}`);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: "Programaciones" }));
+    expect(await screen.findByText("Cierre diario")).toBeInTheDocument();
+    expect(screen.getByText("0 9 * * 1-5")).toBeInTheDocument();
+    expect(screen.getByText("Falta la entrada obligatoria region")).toBeInTheDocument();
+    await user.click(screen.getByRole("switch", { name: "Activar Cierre diario" }));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "PATCH")).toBe(true));
+  });
+
+  it("envía la expresión cron y la zona horaria al crear", async () => {
+    let body: Record<string, unknown> = {};
+    loggedInAs(ADMIN_ME, {
+      [`GET /api/v1/workflows/${WF_ID}`]: () => json(published),
+      [`GET /api/v1/workflows/${WF_ID}/schedules`]: () => json([]),
+      [`POST /api/v1/workflows/${WF_ID}/schedules`]: async (r) => {
+        body = (await r.json()) as Record<string, unknown>;
+        return json(schedule(), 201);
+      },
+    });
+    renderApp(`/workflows/${WF_ID}`);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: "Programaciones" }));
+    await user.click(await screen.findByRole("button", { name: "Nueva programación" }));
+    await user.type(screen.getByLabelText(/Nombre/), "Informe");
+    const cron = screen.getByLabelText(/Expresión cron/);
+    await user.clear(cron);
+    await user.type(cron, "*/15 * * * *");
+    const zone = screen.getByLabelText(/Zona horaria/);
+    await user.clear(zone);
+    await user.type(zone, "Europe/Madrid");
+    await user.click(screen.getByRole("button", { name: "Crear programación" }));
+    await waitFor(() => expect(body).toMatchObject({ name: "Informe", cron_expression: "*/15 * * * *", timezone: "Europe/Madrid" }));
+  });
+
+  it("muestra el error del servidor si la expresión no es válida", async () => {
+    loggedInAs(ADMIN_ME, {
+      [`GET /api/v1/workflows/${WF_ID}`]: () => json(published),
+      [`GET /api/v1/workflows/${WF_ID}/schedules`]: () => json([]),
+      [`POST /api/v1/workflows/${WF_ID}/schedules`]: () =>
+        json({ title: "Solicitud inválida", status: 422, detail: "Expresión cron no válida" }, 422),
+    });
+    renderApp(`/workflows/${WF_ID}`);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: "Programaciones" }));
+    await user.click(await screen.findByRole("button", { name: "Nueva programación" }));
+    await user.type(screen.getByLabelText(/Nombre/), "x");
+    await user.click(screen.getByRole("button", { name: "Crear programación" }));
+    expect(await screen.findByText(/Expresión cron no válida/)).toBeInTheDocument();
+  });
+
+  it("un viewer no ve la pestaña de programaciones", async () => {
+    loggedInAs(VIEWER_ME, { [`GET /api/v1/workflows/${WF_ID}`]: () => json(published) });
+    renderApp(`/workflows/${WF_ID}`);
+    await screen.findByRole("tab", { name: "Definición" });
+    expect(screen.queryByRole("tab", { name: "Programaciones" })).not.toBeInTheDocument();
   });
 });
 

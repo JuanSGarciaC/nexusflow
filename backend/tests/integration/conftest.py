@@ -102,7 +102,8 @@ def _clean_state() -> None:
     async def _truncate(session: AsyncSession) -> None:
         await session.execute(
             text(
-                "TRUNCATE audit_log, refresh_tokens, credentials, webhook_deliveries, "
+                "TRUNCATE audit_log, workflow_schedules, refresh_tokens, credentials, "
+                "webhook_deliveries, "
                 "webhook_subscriptions, webhook_triggers, step_attempts, step_runs, "
                 "workflow_runs, workflow_versions, workflows, users "
                 "RESTART IDENTITY CASCADE"

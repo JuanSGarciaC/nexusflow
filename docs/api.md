@@ -98,6 +98,22 @@ En las llamadas que el motor hace a APIs externas, cada paso envía
 otra persona guardó antes, la respuesta es `409` y no se sobrescribe nada: recarga el flujo
 y vuelve a aplicar tus cambios.
 
+## Programaciones (cron)
+
+```bash
+curl -X POST "$API/api/v1/workflows/$WORKFLOW_ID/schedules" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name": "Informe diario", "cron_expression": "0 9 * * 1-5",
+       "timezone": "Europe/Madrid", "input": {"region": "eu"}}'
+```
+
+- Cron de **5 campos** (minuto, hora, día del mes, mes, día de la semana) evaluado en la
+  zona horaria IANA indicada. Una expresión o zona inválida responde `422`.
+- `next_run_at` (UTC) es el próximo disparo; `last_run_id` y `last_error` explican el último.
+- Pausar con `PATCH {"is_active": false}`; reanudar recalcula el próximo disparo desde ahora.
+- Los disparos perdidos por una caída (más de 5 min de retraso) **se omiten**.
+- Las ejecuciones creadas llevan `trigger_type: "schedule"`.
+
 ## Webhooks entrantes (lanzar un flujo)
 
 Cada trigger tiene una URL pública y un secreto `whsec_…`, que se muestra una sola vez.

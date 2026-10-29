@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     max_dispatch_countdown_seconds: int = Field(default=900, ge=1, le=3000)
     sweep_interval_seconds: float = Field(default=15.0, ge=1, le=300)
 
+    # --- Programaciones (cron) ---
+    # Un disparo con más retraso que esto (p. ej. tras una caída larga) se omite en lugar de
+    # ejecutarse tarde y fuera de contexto. No se recuperan los disparos perdidos.
+    schedule_misfire_grace_seconds: int = Field(default=300, ge=15, le=86_400)
+
     # --- Webhooks ---
     webhook_signature_tolerance_seconds: int = Field(default=300, ge=30, le=3600)
     webhook_delivery_max_attempts: int = Field(default=8, ge=1, le=20)

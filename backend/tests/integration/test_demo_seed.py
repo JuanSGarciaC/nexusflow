@@ -38,6 +38,7 @@ async def test_seed_is_idempotent_and_creates_every_role(
     assert len(first.password_generated) >= 12
     assert sorted(first.users_created) == sorted(DEMO_USERS)
     assert len(first.workflows_created) == 2  # sin mock-partner no hay flujo de cobro
+    assert len(first.schedules_created) == 1
     assert first.runs_started == 6  # 3 por flujo, rotando las entradas de ejemplo
     assert dispatcher.drain()  # se encolaron los primeros pasos
 
@@ -46,6 +47,7 @@ async def test_seed_is_idempotent_and_creates_every_role(
     )
     assert second.users_created == []
     assert second.workflows_created == []
+    assert second.schedules_created == []  # no se duplica
     assert second.password_generated is None
 
     roles = {r["email"]: r["role"] for r in await fetch(sessions, "SELECT email, role FROM users")}
@@ -56,6 +58,7 @@ async def test_seed_is_idempotent_and_creates_every_role(
         "WHERE v.published_at IS NOT NULL",
     )
     assert len(published) == 2
+    assert len(await fetch(sessions, "SELECT id FROM workflow_schedules")) == 1
 
 
 async def test_seed_with_partner_creates_encrypted_credentials(

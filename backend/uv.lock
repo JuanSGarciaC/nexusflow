@@ -647,6 +647,14 @@ wheels = [
 ]
 
 [[package]]
+name = "cronsim"
+version = "2.7"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fb/1a/02f105147f7f2e06ed4f734ff5a6439590bb275a53dd91fc73df6312298a/cronsim-2.7-py3-none-any.whl", hash = "sha256:1e1431fa08c51dc7f72e67e571c7c7a09af26420169b607badd4ca9677ffad1e", size = 14213, upload-time = "2025-10-21T16:38:20.431Z" },
+]
+
+[[package]]
 name = "cryptography"
 version = "50.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1385,6 +1393,7 @@ dependencies = [
     { name = "argon2-cffi" },
     { name = "asyncpg" },
     { name = "celery", extra = ["redis"] },
+    { name = "cronsim" },
     { name = "cryptography" },
     { name = "email-validator" },
     { name = "fastapi" },
@@ -1416,6 +1425,7 @@ requires-dist = [
     { name = "argon2-cffi", specifier = ">=25.1.0" },
     { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "celery", extras = ["redis"], specifier = ">=5.6.3" },
+    { name = "cronsim", specifier = ">=2.7" },
     { name = "cryptography", specifier = ">=50.0.2" },
     { name = "email-validator", specifier = ">=2.3.0" },
     { name = "fastapi", specifier = ">=0.162.0" },

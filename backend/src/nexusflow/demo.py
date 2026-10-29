@@ -35,6 +35,9 @@ from nexusflow.integrations import service as credentials
 from nexusflow.integrations.crypto import CredentialCipher
 from nexusflow.integrations.models import Credential
 from nexusflow.integrations.schemas import CredentialCreate
+from nexusflow.schedules import service as schedules
+from nexusflow.schedules.models import WorkflowSchedule
+from nexusflow.schedules.schemas import ScheduleCreate
 from nexusflow.workflows import service as workflows
 from nexusflow.workflows.dsl import WorkflowDefinition
 from nexusflow.workflows.models import Workflow
@@ -153,6 +156,7 @@ class SeedReport:
     users_created: list[str] = field(default_factory=list)
     workflows_created: list[str] = field(default_factory=list)
     credentials_created: list[str] = field(default_factory=list)
+    schedules_created: list[str] = field(default_factory=list)
     runs_started: int = 0
 
 
@@ -229,6 +233,34 @@ async def _ensure_workflow(
     return state.workflow
 
 
+DEMO_SCHEDULE = "Demo · Pedidos de cada día laborable"
+
+
+async def _ensure_schedule(
+    session: AsyncSession, admin: User, workflow: Workflow, report: SeedReport
+) -> None:
+    exists = await session.scalar(
+        select(WorkflowSchedule.id).where(
+            WorkflowSchedule.workflow_id == workflow.id, WorkflowSchedule.name == DEMO_SCHEDULE
+        )
+    )
+    if exists is not None:
+        return
+    await schedules.create_schedule(
+        session,
+        admin,
+        workflow.id,
+        ScheduleCreate(
+            name=DEMO_SCHEDULE,
+            cron_expression="0 9 * * 1-5",
+            timezone="Europe/Madrid",
+            input={"order_id": "PED-CRON", "amount": 99, "country": "ES"},
+        ),
+        CTX,
+    )
+    report.schedules_created.append(DEMO_SCHEDULE)
+
+
 async def seed_demo(
     sessions: async_sessionmaker[AsyncSession],
     settings: Settings,
@@ -272,6 +304,7 @@ async def seed_demo(
             name: await _ensure_workflow(session, admin, name, description, definition, report)
             for name, description, definition in flows
         }
+        await _ensure_schedule(session, admin, created["Demo · Clasificar pedido"], report)
 
     for name, workflow in created.items():
         samples = SAMPLE_INPUTS.get(name, [])
