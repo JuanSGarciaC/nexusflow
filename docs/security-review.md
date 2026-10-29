@@ -49,6 +49,30 @@ comprueba**: una afirmación sin prueba automatizada no cuenta como control.
   esperar a que el mantenedor republique la imagen. Limitaciones: solo `--scanners vuln`
   (no secretos ni misconfig, que cubren gitleaks y la revisión manual); la base de datos
   de Trivy se descarga en cada ejecución, y un fallo de red allí rompería el job.
+- **Rotación de claves.** Política, calendario y respuesta a filtraciones de las claves
+  Fernet y JWT en [key-rotation.md](key-rotation.md).
+- **Rate limiting: cobertura por endpoint.** Limitador de ventana fija sobre Redis que
+  **falla cerrado** (503 si Redis cae) y guarda un hash del identificador, no la IP ni el
+  email. Auditoría de las ~45 rutas:
+
+  | Endpoint | Límite | Clave |
+  |---|---|---|
+  | `POST /auth/register` | 5 / hora | IP |
+  | `POST /auth/login` | 20 / min por IP y 10 / 15 min por email | IP y email |
+  | `POST /auth/refresh` | 60 / min | IP |
+  | `POST /workflows/{id}/runs` | 120 / min (configurable) | usuario |
+  | `POST /hooks/{id}` (entrada) | `rate_limit_per_minute` del webhook (1–6000) | webhook |
+
+  **Sin límite hoy (hueco conocido):** resto de escrituras y lecturas autenticadas. Los de
+  mayor riesgo, por orden: `webhook-subscriptions/{id}/ping` y `webhook-deliveries/{id}/redeliver`
+  (cada llamada provoca una petición HTTP saliente: amplificación), `POST /workflows/validate`
+  (trabajo de CPU), `PUT /credentials/{id}/secret` (cifrado) y los listados paginados.
+  Mitigación parcial: todos exigen autenticación y rol, y la salida HTTP tiene control de
+  destinos. No existe un endpoint de cambio de contraseña, así que el login es la única
+  superficie de fuerza bruta y sí está limitada. Propuesta: un límite por usuario
+  (p. ej. 120 escrituras/min) y uno más estricto en `ping`/`redeliver`; pendiente de
+  aprobar los valores. Limitación del mecanismo: la ventana fija permite hasta 2× el
+  límite en el borde entre ventanas.
 - **IP del cliente.** Cada salto solo confía en `X-Forwarded-For` si viene del salto
   anterior, con una IP fija (Caddy → nginx → API). Una cabecera falsificada se ignora
   (verificado contra uvicorn).
