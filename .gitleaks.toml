@@ -13,3 +13,12 @@ paths = [
   '''^backend/tests/''',
   '''^frontend/src/test/''',
 ]
+
+# Valores de ejemplo concretos y públicos (no son credenciales): placeholders de
+# .env.example, la contraseña de demostración de la documentación y la del Postgres
+# efímero del CI. Se permite el VALOR, no el archivo: cualquier otro secreto se detecta.
+regexes = [
+  '''change-me-[a-z0-9-]+''',
+  '''demo-clave-larga-2026''',
+  '''ci-only-password''',
+]
