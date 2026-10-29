@@ -114,6 +114,8 @@ docker compose start api worker beat
 
 ## 6. Rotación de secretos
 
+Política, calendario y respuesta ante filtraciones: [key-rotation.md](key-rotation.md).
+
 | Secreto | Procedimiento | Efecto |
 |---|---|---|
 | `NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS` | Pon la clave nueva **delante** (`nueva,antigua`), reinicia, ejecuta `nexusflow rotate-credentials` y después quita la antigua | Sin interrupción (MultiFernet) |
