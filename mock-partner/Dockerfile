@@ -4,7 +4,9 @@ FROM python:3.13-slim
 WORKDIR /app
 COPY requirements.txt ./
 # --require-hashes: solo se instalan exactamente los paquetes verificados.
-RUN pip install --no-cache-dir --require-hashes -r requirements.txt
+# Tras instalar se elimina pip (mismo motivo que en backend/Dockerfile: CVE en lo vendorizado).
+RUN pip install --no-cache-dir --require-hashes -r requirements.txt \
+    && python -m pip uninstall -y pip
 COPY app.py ./
 
 USER 10001:10001

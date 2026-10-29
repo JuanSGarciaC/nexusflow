@@ -268,3 +268,26 @@ jobs:
       - name: Apagar
         if: always()
         run: docker compose --profile demo down -v
+
+  trivy:
+    name: Imágenes (Trivy HIGH/CRITICAL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Construir las tres imágenes
+        run: |
+          docker build -t nf-backend:scan backend
+          docker build -t nf-web:scan frontend
+          docker build -t nf-mock-partner:scan mock-partner
+      # Imagen de Trivy fijada por versión. Falla con vulnerabilidades HIGH/CRITICAL que ya
+      # tienen parche (--ignore-unfixed): lo que no se puede arreglar no bloquea el CI.
+      - name: Escanear las imágenes
+        run: |
+          for image in nf-backend nf-web nf-mock-partner; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              aquasec/trivy:0.67.2 image --scanners vuln --severity HIGH,CRITICAL \
+              --ignore-unfixed --no-progress --exit-code 1 "$image:scan"
+          done

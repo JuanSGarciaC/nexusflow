@@ -39,6 +39,16 @@ comprueba**: una afirmación sin prueba automatizada no cuenta como control.
     gitleaks-action.
 - **Cadena de suministro.** Lockfiles con hashes (`uv.lock`, `pnpm-lock.yaml`);
   `pip-audit` y `pnpm audit` en CI; GitHub Actions fijadas por SHA de commit.
+- **Escaneo de imágenes (Trivy).** El job `trivy` construye backend, web y mock-partner y
+  falla ante vulnerabilidades HIGH/CRITICAL **con parche disponible** (`--ignore-unfixed`:
+  lo que nadie puede arreglar aún no bloquea el CI). Primer escaneo, con tres hallazgos
+  reales: (1) librerías vendorizadas dentro de `pip` (msgpack, urllib3), que la app no usa
+  en ejecución → se **elimina `pip`** de las imágenes finales (menos superficie, sin
+  `.trivyignore`); (2) `curl` y `brotli` del Alpine de nginx → `apk upgrade` en la imagen
+  web. Trade-off: `apk upgrade` hace la build menos reproducible a cambio de parchear sin
+  esperar a que el mantenedor republique la imagen. Limitaciones: solo `--scanners vuln`
+  (no secretos ni misconfig, que cubren gitleaks y la revisión manual); la base de datos
+  de Trivy se descarga en cada ejecución, y un fallo de red allí rompería el job.
 - **IP del cliente.** Cada salto solo confía en `X-Forwarded-For` si viene del salto
   anterior, con una IP fija (Caddy → nginx → API). Una cabecera falsificada se ignora
   (verificado contra uvicorn).

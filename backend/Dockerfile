@@ -24,7 +24,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ---- Etapa 2: imagen final mínima, sin uv ni herramientas de compilación ----
 FROM python:3.13-slim AS runtime
 
-RUN groupadd --system --gid 10001 app \
+# pip no hace falta en ejecución y arrastra librerías vendorizadas (msgpack, urllib3) con
+# CVE que Trivy reporta aunque la app no las use: se elimina para reducir superficie.
+RUN python -m pip uninstall -y pip \
+    && groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
 
 WORKDIR /app
