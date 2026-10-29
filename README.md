@@ -585,6 +585,7 @@ Credenciales (Fase 5):
 | [docs/security-review.md](docs/security-review.md) | Revisión frente al OWASP API Top 10 (2023): control y prueba que lo respalda en cada punto, y limitaciones aceptadas |
 | [docs/performance.md](docs/performance.md) | Planes y tiempos de las consultas críticas con 50 000 ejecuciones, la optimización aplicada y cuándo dejará de bastar |
 | [docs/adr/](docs/adr/) | 11 decisiones de arquitectura con alternativas descartadas |
+| [docs/decisiones-y-tradeoffs.md](docs/decisiones-y-tradeoffs.md) | Las decisiones más preguntadas con su coste y cuándo se revertirían, preguntas de entrevista y deuda conocida |
 | [SECURITY.md](SECURITY.md) | Cómo reportar una vulnerabilidad |
 | `/docs` (Swagger) y [backend/openapi.json](backend/openapi.json) | Referencia completa de los endpoints |
 
@@ -605,7 +606,8 @@ Credenciales (Fase 5):
 
 ## Decisiones técnicas
 
-Resumen. El razonamiento completo está en [docs/adr](docs/adr/).
+Resumen. El razonamiento completo está en [docs/adr](docs/adr/); las decisiones con su coste y la
+deuda conocida, en [docs/decisiones-y-tradeoffs.md](docs/decisiones-y-tradeoffs.md).
 
 - **Monolito modular** en lugar de microservicios: un equipo y un dominio. Los procesos
   `api`/`worker` escalan por separado sin separar el código.
