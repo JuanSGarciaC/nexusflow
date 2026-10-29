@@ -1,6 +1,6 @@
 # NexusFlow
 
-[![CI](https://github.com/JuanSGarciaC/nexusflow/actions/workflows/ci.yml/badge.svg)](https://github.com/JuanSGarciaC/nexusflow/actions/workflows/ci.yml)
+[![CI](https://github.com/JuanSGarciaC/nexusflow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/JuanSGarciaC/nexusflow/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.13-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 

@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+# Los runners van fijados a una versión concreta: `ubuntu-latest` migra a Ubuntu 26
+# el 19-oct-2026 y un cambio de imagen no debe romper el CI sin aviso. Dependabot NO
+# actualiza `runs-on`: subir de versión es una tarea manual (revisar al salir cada LTS).
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -15,7 +19,7 @@ concurrency:
 jobs:
   backend:
     name: Backend (lint, tipos, pruebas, auditoría)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
@@ -78,7 +82,7 @@ jobs:
 
   frontend:
     name: Frontend (lint, tipos, pruebas, build, auditoría)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
@@ -111,7 +115,7 @@ jobs:
 
   secrets:
     name: Escaneo de secretos
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -124,7 +128,7 @@ jobs:
 
   compose:
     name: Docker Compose (build + smoke test)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [backend, frontend]
     steps:
