@@ -146,7 +146,14 @@ SAMPLE_INPUTS: dict[str, list[dict[str, Any]]] = {
         {"order_id": "PED-1004", "amount": 640, "country": "ES"},
     ],
     "Demo · Confirmación diferida": [{"ticket": "TCK-77"}],
-    "Demo · Cobro a cliente VIP": [{"customer_id": "c-vip-1", "amount": 49.9}],
+    # Clientes que existen en mock-partner (c-100 y c-300 son VIP).
+    "Demo · Cobro a cliente VIP": [
+        {"customer_id": "c-100", "amount": 49.9},
+        {"customer_id": "c-300", "amount": 15.0},
+        # Cliente inexistente: la consulta devuelve 404 y la ejecución falla, para que el
+        # panel muestre un error real (clasificado, sin reintentos inútiles).
+        {"customer_id": "c-999", "amount": 10.0},
+    ],
 }
 
 
@@ -233,32 +240,46 @@ async def _ensure_workflow(
     return state.workflow
 
 
-DEMO_SCHEDULE = "Demo · Pedidos de cada día laborable"
+# (flujo, nombre, cron, zona, entrada). Una sin pausas largas (cada 15 min) para que, con
+# `beat` en marcha, se vea un disparo real poco después de arrancar la demostración.
+DEMO_SCHEDULES: list[tuple[str, str, str, str, dict[str, Any]]] = [
+    (
+        "Demo · Clasificar pedido",
+        "Demo · Pedidos de cada día laborable",
+        "0 9 * * 1-5",
+        "Europe/Madrid",
+        {"order_id": "PED-CRON", "amount": 99, "country": "ES"},
+    ),
+    (
+        "Demo · Confirmación diferida",
+        "Demo · Confirmación cada 15 minutos",
+        "*/15 * * * *",
+        "UTC",
+        {"ticket": "TCK-CRON"},
+    ),
+]
 
 
-async def _ensure_schedule(
-    session: AsyncSession, admin: User, workflow: Workflow, report: SeedReport
+async def _ensure_schedules(
+    session: AsyncSession, admin: User, created: dict[str, Workflow], report: SeedReport
 ) -> None:
-    exists = await session.scalar(
-        select(WorkflowSchedule.id).where(
-            WorkflowSchedule.workflow_id == workflow.id, WorkflowSchedule.name == DEMO_SCHEDULE
+    for workflow_name, name, cron, zone, data in DEMO_SCHEDULES:
+        workflow = created[workflow_name]
+        exists = await session.scalar(
+            select(WorkflowSchedule.id).where(
+                WorkflowSchedule.workflow_id == workflow.id, WorkflowSchedule.name == name
+            )
         )
-    )
-    if exists is not None:
-        return
-    await schedules.create_schedule(
-        session,
-        admin,
-        workflow.id,
-        ScheduleCreate(
-            name=DEMO_SCHEDULE,
-            cron_expression="0 9 * * 1-5",
-            timezone="Europe/Madrid",
-            input={"order_id": "PED-CRON", "amount": 99, "country": "ES"},
-        ),
-        CTX,
-    )
-    report.schedules_created.append(DEMO_SCHEDULE)
+        if exists is not None:
+            continue
+        await schedules.create_schedule(
+            session,
+            admin,
+            workflow.id,
+            ScheduleCreate(name=name, cron_expression=cron, timezone=zone, input=data),
+            CTX,
+        )
+        report.schedules_created.append(name)
 
 
 async def seed_demo(
@@ -304,7 +325,7 @@ async def seed_demo(
             name: await _ensure_workflow(session, admin, name, description, definition, report)
             for name, description, definition in flows
         }
-        await _ensure_schedule(session, admin, created["Demo · Clasificar pedido"], report)
+        await _ensure_schedules(session, admin, created, report)
 
     for name, workflow in created.items():
         samples = SAMPLE_INPUTS.get(name, [])

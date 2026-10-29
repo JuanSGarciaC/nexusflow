@@ -9,9 +9,10 @@ trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y 
 en segundo plano con reintentos, timeouts e idempotencia.
 
 > **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fases 1 a 9 completadas y revisadas:** fundaciones, autenticación y RBAC, definición
+> **Fases 1 a 10 completadas y revisadas:** fundaciones, autenticación y RBAC, definición
 > de flujos, motor de ejecución, credenciales cifradas, webhooks firmados, métricas y
-> auditoría, panel web, y E2E con datos de demostración y guía de despliegue. La revisión de
+> auditoría, panel web, E2E con datos de demostración y guía de despliegue, y programaciones
+> cron. La revisión de
 > seguridad ([OWASP API Top 10](docs/security-review.md)) y la de rendimiento
 > ([mediciones](docs/performance.md)) están documentadas con sus pruebas.
 > Esta documentación describe solo lo que ya existe y está probado. Lo pendiente aparece en la
@@ -19,6 +20,7 @@ en segundo plano con reintentos, timeouts e idempotencia.
 
 ## Contenido
 
+- [Capturas](#capturas)
 - [Qué demuestra este proyecto](#qué-demuestra-este-proyecto)
 - [Arquitectura](#arquitectura)
 - [Inicio rápido con Docker](#inicio-rápido-con-docker)
@@ -31,6 +33,20 @@ en segundo plano con reintentos, timeouts e idempotencia.
 - [Hoja de ruta](#hoja-de-ruta)
 - [Decisiones técnicas](#decisiones-técnicas)
 
+## Capturas
+
+Tomadas del sistema real (API + worker + beat + PostgreSQL + Redis) con los datos de
+demostración de `nexusflow seed-demo`, que son ficticios. Se regeneran con
+`CAPTURE_SCREENSHOTS=1 pnpm exec playwright test screenshots` (ver
+[`frontend/e2e/screenshots.spec.ts`](frontend/e2e/screenshots.spec.ts)).
+
+| | |
+|---|---|
+| ![Panel de métricas](docs/screenshots/01-panel.png)<br>**Panel:** volumen, tasa de éxito, p50/p95 y últimos fallos, calculados en PostgreSQL | ![Programaciones cron](docs/screenshots/04-programaciones.png)<br>**Programaciones cron** con zona horaria, próximo y último disparo |
+| ![Cobro VIP con reintentos](docs/screenshots/06-detalle-ejecucion.png)<br>**Reintentos:** la pasarela simulada falla dos veces con 503 y el motor reintenta con la misma `Idempotency-Key` | ![Ejecución fallida](docs/screenshots/07-ejecucion-fallida.png)<br>**Error clasificado:** un 404 no se reintenta y se muestra el paso que falló |
+| ![Editor de flujos](docs/screenshots/03-editor-flujo.png)<br>**Editor** con validación del grafo y versiones inmutables | ![Credenciales](docs/screenshots/08-credenciales.png)<br>**Credenciales** de solo escritura: solo se ven metadatos y una pista |
+| ![Auditoría](docs/screenshots/09-auditoria.png)<br>**Auditoría** de solo inserción: la ejecución lanzada por el cron aparece sin actor humano | |
+
 ## Qué demuestra este proyecto
 
 | Área | Qué se ve en el código |
@@ -42,7 +58,7 @@ en segundo plano con reintentos, timeouts e idempotencia.
 | Sistemas distribuidos | Celery con entrega *at-least-once*, reclamo atómico en PostgreSQL, lease y barrido de recuperación, pruebas con un worker real |
 | Operación | Logs JSON con `request_id`, health checks *liveness* / *readiness*, Docker no-root |
 | Frontend | React 19 + TypeScript estricto + Mantine, **cliente tipado generado desde OpenAPI** (el CI falla si el contrato se desincroniza), sesión en memoria + cookie HttpOnly con renovación serializada, CSP sin scripts inline |
-| Calidad | Ruff, mypy `strict`, ESLint; 329 pruebas de backend (87 % de cobertura con ramas, mínimo 85 % en CI) contra PostgreSQL y Redis reales, 23 de frontend y 6 E2E; CI con auditoría de dependencias y escaneo de secretos |
+| Calidad | Ruff, mypy `strict`, ESLint; 362 pruebas de backend (88 % de cobertura con ramas, mínimo 85 % en CI) contra PostgreSQL y Redis reales, 27 de frontend y 8 E2E; CI con auditoría de dependencias y escaneo de secretos |
 
 ## Arquitectura
 
@@ -245,13 +261,14 @@ pnpm exec playwright install chromium     # una vez
 $env:E2E_PASSWORD = "demo-clave-larga-2026"; pnpm e2e
 ```
 
-Las 6 pruebas cubren:
+Las 8 pruebas cubren:
 - un operador ejecuta un flujo y ve el resultado del worker;
 - la clave de idempotencia evita duplicados;
 - un editor ve los errores del validador y publica;
 - un viewer solo puede leer, incluso si fuerza la URL;
 - un cambio de rol queda auditado;
-- la sesión sobrevive a una recarga y el logout la invalida en el servidor.
+- la sesión sobrevive a una recarga y el logout la invalida en el servidor;
+- un editor crea, pausa y elimina una programación cron (y el operador no la ve).
 
 En CI se ejecutan contra nginx + API + worker en Docker y, si fallan, se guarda el informe
 con trazas.
