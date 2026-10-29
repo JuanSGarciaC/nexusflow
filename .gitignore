@@ -31,3 +31,6 @@ test-results/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Token de métricas para Prometheus (deploy/observability/README.md)
+deploy/observability/secrets/

@@ -1,0 +1,101 @@
+# Reglas de alerta sobre las métricas que expone la API (/metrics). Se prueban con
+# `promtool test rules` (alerts_test.yml), que corre en el CI.
+#
+# Umbrales pensados para una instalación pequeña; ajústalos a tu tráfico real.
+#
+# Límite conocido: solo existen métricas de la API. El worker y beat NO exportan métricas
+# propias, así que su caída se detecta de forma INDIRECTA (la cola de ejecuciones
+# pendientes deja de vaciarse). Si necesitas alertas directas, añade un exporter de Celery.
+groups:
+  - name: nexusflow-disponibilidad
+    rules:
+      - alert: NexusFlowApiCaida
+        expr: up{job="nexusflow"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "La API de NexusFlow no responde al scrape"
+          description: "Prometheus no puede leer /metrics desde hace 2 minutos (API caída, red o token)."
+
+      - alert: NexusFlowErrores5xx
+        # Proporción, no cuenta: un pico aislado en poco tráfico no debe alertar.
+        expr: |
+          (
+            sum(rate(nexusflow_http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(nexusflow_http_requests_total[5m]))
+          ) > 0.05
+          and sum(rate(nexusflow_http_requests_total[5m])) > 0.1
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Más del 5 % de las peticiones terminan en 5xx"
+          description: "Tasa de errores del servidor {{ $value | humanizePercentage }} durante 5 minutos."
+
+      - alert: NexusFlowLatenciaAlta
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(nexusflow_http_request_duration_seconds_bucket[5m]))
+          ) > 1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Latencia p95 de la API por encima de 1 s"
+          description: "p95 = {{ $value | humanizeDuration }} durante 10 minutos."
+
+  - name: nexusflow-motor
+    rules:
+      - alert: NexusFlowColaSinVaciar
+        # Si en 15 min NUNCA hubo 0 ejecuciones pendientes, nadie las está consumiendo:
+        # worker parado, Redis caído o broker inaccesible. Detección indirecta.
+        expr: min_over_time(nexusflow_runs{status="pending"}[15m]) > 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Hay ejecuciones pendientes que no se consumen"
+          description: "Siempre ha habido al menos una ejecución pendiente en 15 min: revisa worker, Redis y beat."
+
+      - alert: NexusFlowColaCreciendo
+        expr: nexusflow_runs{status="pending"} > 100
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Más de 100 ejecuciones pendientes durante 10 min"
+          description: "{{ $value }} pendientes: el worker no da abasto; considera subir --concurrency o añadir réplicas."
+
+      - alert: NexusFlowEjecucionesFallando
+        # nexusflow_runs es un gauge de «cuántas hay en cada estado»; su variación aproxima
+        # las nuevas. Si se borraran ejecuciones antiguas, la cifra podría bajar (no alerta).
+        expr: sum(delta(nexusflow_runs{status=~"failed|timed_out"}[15m])) > 10
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: "Más de 10 ejecuciones fallidas o con timeout en 15 min"
+          # delta() extrapola a los bordes de la ventana: se redondea para no mostrar decimales.
+          description: '{{ $value | printf "%.0f" }} ejecuciones nuevas fallidas: revisa el historial y los errores por paso.'
+
+      - alert: NexusFlowRevisionManualPendiente
+        expr: nexusflow_steps_active{status="needs_review"} > 0
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "Hay pasos esperando revisión manual desde hace más de 1 h"
+          description: "{{ $value }} pasos en needs_review: una persona debe resolverlos (acción no idempotente con resultado incierto)."
+
+  - name: nexusflow-webhooks
+    rules:
+      - alert: NexusFlowWebhookDeadLetter
+        expr: nexusflow_webhook_deliveries_open{status="dead"} > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Hay entregas de webhook en dead-letter"
+          description: "{{ $value }} entregas agotaron sus reintentos: revisa el destino y reenvíalas."
+
+      - alert: NexusFlowWebhookAcumulado
+        expr: sum(nexusflow_webhook_deliveries_open{status=~"pending|retry_scheduled"}) > 100
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Más de 100 entregas de webhook pendientes o reintentándose"
+          description: "{{ $value }} entregas sin completar: destino lento o caído."

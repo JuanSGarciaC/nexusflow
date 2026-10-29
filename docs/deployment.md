@@ -137,9 +137,10 @@ Política, calendario y respuesta ante filtraciones: [key-rotation.md](key-rotat
       static_configs: [{ targets: ["api:8000"] }]
   ```
 
-  Alertas recomendadas: `nexusflow_webhook_deliveries_open{status="dead"} > 0`,
-  `nexusflow_steps_active{status="needs_review"} > 0`, y la tasa de 5xx en
-  `nexusflow_http_requests_total`.
+  Hay un Prometheus + Grafana de referencia con un dashboard de 13 paneles y 9 alertas
+  probadas (API caída, 5xx, latencia, cola sin vaciar, ejecuciones fallidas, revisión manual,
+  dead-letter de webhooks): [`deploy/observability/`](../deploy/observability/README.md). Sin
+  Alertmanager configurado **nadie recibe avisos**; es lo primero que debes añadir.
 - **Programaciones cron**: las dispara `beat` (a través de la tarea de barrido, cada 15 s).
   **Si `beat` está parado, no se ejecuta ninguna programación**; vigílalo igual que al worker.
   Tras una caída, los disparos con más de 5 minutos de retraso
