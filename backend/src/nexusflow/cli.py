@@ -162,6 +162,7 @@ async def seed_demo_command(runs_per_flow: int) -> int:
     print(
         f"Usuarios creados: {len(report.users_created)} · flujos creados: "
         f"{len(report.workflows_created)} · credenciales: {len(report.credentials_created)} · "
+        f"programaciones: {len(report.schedules_created)} · "
         f"ejecuciones lanzadas: {report.runs_started}"
     )
     if not report.credentials_created and not os.environ.get("MOCK_PARTNER_CRM_TOKEN"):

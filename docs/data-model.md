@@ -119,6 +119,18 @@ erDiagram
         varchar hint "…a1b2"
         timestamptz last_used_at
     }
+    workflow_schedules {
+        uuid id PK
+        uuid workflow_id FK "ON DELETE CASCADE"
+        varchar cron_expression "5 campos"
+        varchar timezone "IANA"
+        jsonb input
+        boolean is_active
+        timestamptz next_run_at "índice parcial WHERE is_active"
+        timestamptz last_run_at
+        uuid last_run_id FK "SET NULL"
+        varchar last_error
+    }
     webhook_triggers {
         uuid id PK "parte de la URL pública"
         uuid workflow_id FK
@@ -148,6 +160,7 @@ erDiagram
 
 | Decisión | Motivo |
 |---|---|
+| `next_run_at` en la tabla y no en memoria | El estado de las programaciones sobrevive a reinicios y lo ven todos los procesos ([ADR-0012](adr/0012-programaciones-cron.md)). |
 | Claves UUID generadas en la aplicación | El id se conoce antes del INSERT y no revela el volumen de registros. `audit_log` usa `bigint`: es solo de inserción, se ordena por id y nunca se expone para enumerar. |
 | `role` como `VARCHAR` + `CHECK` en lugar de `ENUM` nativo | Añadir un rol es una migración trivial; con `ENUM` habría que usar `ALTER TYPE`, que tiene restricciones dentro de transacciones. |
 | `email` en minúsculas garantizado por `CHECK` | La aplicación normaliza, pero la base de datos es la última línea de defensa contra duplicados como `Ana@` y `ana@`. |

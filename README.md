@@ -283,10 +283,12 @@ uv run pytest
 | `unit/test_credentials_units.py` | Cifrado con vinculación a la fila, manipulación detectada, rotación de claves, adaptadores, hosts válidos, redacción |
 | `integration/test_credentials.py` | Secreto de solo escritura (ni en respuestas, ni en la tabla en claro, ni en la auditoría), permisos, `unknown_credential` al publicar, borrado bloqueado si está en uso, **inyección y redacción en el motor**, **host no permitido**, **cifrado intercambiado entre filas**, rotación |
 | `unit/test_webhook_signing.py` | Firma: manipulación de un byte, otro secreto, ventana de tiempo, **timestamp reescrito**, cabeceras mal formadas, rotación con dos firmas |
+| `integration/test_schedules.py` | API y permisos (solo editor/admin), validación de cron y zona horaria, **disparo con la clave de idempotencia (la caída entre crear la ejecución y avanzar no duplica)**, **5 barridos simultáneos → una sola ejecución**, disparos perdidos omitidos, errores anotados sin detener la programación; más un disparo real por la tarea de barrido con un worker Celery |
+| `unit/test_cron.py` | Expresiones, zonas horarias, **salto de hora de primavera y repetición de otoño** (Europe/Madrid), expresiones inválidas |
 | `integration/test_webhooks.py` | Entrada: secreto mostrado una vez, entrada filtrada, **deduplicación con y sin id de evento**, firmas rechazadas (ausente, otra, caducada, cuerpo cambiado), 404 indistinguible, rotación, límite de uso. Salida: **evento firmado verificado por el receptor**, filtros, **el outbox se deshace con el rollback**, reintentos con el mismo `event_id` → dead-letter → reenvío, anti-SSRF, recuperación por barrido |
 | `integration/test_observability.py` | Métricas que reflejan ejecuciones reales (éxitos, fallos, reintentos, clases de error, flujos con más fallos); **percentiles exactos** con duraciones conocidas; ventana y filtro por flujo; canceladas fuera de la tasa de éxito; `/metrics` con token, etiquetas por plantilla de ruta (sin ids); auditoría con filtros, **paginación por cursor sin solapes** y prefijo que no actúa como comodín |
 | `integration/test_workflows_api.py` | Ciclo de vida borrador → publicación → nueva versión, concurrencia optimista (4 guardados simultáneos: 1 gana), **inmutabilidad en la base de datos**, archivo, búsqueda literal, límite de tamaño (413) |
-| `integration/test_authorization_matrix.py` | **Recorre las 46 operaciones del contrato**: sin token, todas salvo 8 públicas declaradas responden 401; ninguna escritura es posible como viewer. Validada con una mutación (quitar un permiso hace fallar la prueba) |
+| `integration/test_authorization_matrix.py` | **Recorre las 50 operaciones del contrato**: sin token, todas salvo 8 públicas declaradas responden 401; ninguna escritura es posible como viewer. Validada con una mutación (quitar un permiso hace fallar la prueba) |
 | `integration/test_demo_seed.py` | Seed idempotente con los cuatro roles, credenciales cifradas solo con tokens de `mock-partner`, rechazo de contraseña débil sin dejar datos a medias |
 | `frontend/src/api/session.test.ts` | **Cinco 401 simultáneos → una sola renovación** (dos con el mismo refresh token cerrarían la sesión por detección de robo), reintento con el token nuevo, sin reintentos en `/auth/`, sin bucles |
 | `frontend/src/test/app.test.tsx` | App completa con rutas reales: login fallido con el error RFC 9457 y su referencia, vuelta a la página pedida, sesión recuperada por cookie, menú y páginas según permisos, publicación bloqueada con incidencias, **conflicto 409 al guardar**, resolución manual solo para quien puede ejecutar |
@@ -318,7 +320,7 @@ Los endpoints exigen **permisos**, no roles. La matriz completa está en
 |---|:-:|:-:|:-:|:-:|
 | `workflows:read`, `runs:read`, `metrics:read` | ✓ | ✓ | ✓ | ✓ |
 | `workflows:execute` | | ✓ | ✓ | ✓ |
-| `workflows:write`, `credentials:manage`, `webhooks:manage` | | | ✓ | ✓ |
+| `workflows:write`, `credentials:manage`, `webhooks:manage`, `schedules:manage` | | | ✓ | ✓ |
 | `users:read`, `users:manage`, `audit:read` | | | | ✓ |
 
 El primer administrador solo se crea con el comando `nexusflow create-admin`: ningún
@@ -365,6 +367,18 @@ con `needs_review` cuando un paso no idempotente tiene un resultado desconocido.
 
 Todas requieren `credentials:manage` (editor o admin). Un paso la usa con
 `"credential": "<nombre>"`. Ver [ADR-0008](docs/adr/0008-credenciales.md).
+
+### Programaciones (cron)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST/GET | `/api/v1/workflows/{id}/schedules` | Crea una programación (cron de 5 campos + zona horaria IANA + entrada) / lista |
+| PATCH/DELETE | `/api/v1/schedules/{id}` | Cambiar horario o entrada, pausar/reanudar / borrar |
+
+Requieren `schedules:manage`. Cada disparo crea una ejecución con la última versión
+publicada, con una clave de idempotencia derivada del instante previsto (nunca dos). Los
+disparos perdidos por una caída más allá de 5 minutos se omiten, no se recuperan. Ver
+[ADR-0012](docs/adr/0012-programaciones-cron.md).
 
 ### Webhooks
 
@@ -570,6 +584,7 @@ Credenciales (Fase 5):
 | 7 | Métricas de ejecución, Prometheus y auditoría consultable | ✅ Completada |
 | 8 | Panel web React + TypeScript + Mantine | ✅ Completada |
 | 9 | E2E con Playwright, datos de demostración y guía de despliegue | ✅ Completada |
+| 10 | Programaciones cron con zona horaria | ✅ Completada |
 
 ## Decisiones técnicas
 
@@ -608,6 +623,9 @@ Resumen. El razonamiento completo está en [docs/adr](docs/adr/).
 - **SPA en el mismo origen que la API, tipos generados desde OpenAPI:** sin CORS, cookie
   `SameSite=Strict`, CSP sin scripts inline, y un cambio de contrato rompe la compilación
   del frontend en lugar de romper en producción. ([ADR-0011](docs/adr/0011-frontend.md))
+- **Programaciones cron dentro del barrido existente:** el estado (`next_run_at`) está en
+  PostgreSQL, el disparo es idempotente y los disparos perdidos tras una caída se omiten en
+  lugar de ejecutarse tarde. ([ADR-0012](docs/adr/0012-programaciones-cron.md))
 
 El modelo de datos está documentado en [docs/data-model.md](docs/data-model.md).
 

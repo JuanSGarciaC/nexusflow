@@ -27,6 +27,7 @@ class Permission(StrEnum):
     RUNS_READ = "runs:read"
     CREDENTIALS_MANAGE = "credentials:manage"
     WEBHOOKS_MANAGE = "webhooks:manage"
+    SCHEDULES_MANAGE = "schedules:manage"
     METRICS_READ = "metrics:read"
 
 
@@ -36,6 +37,7 @@ _EDITOR = _OPERATOR | {
     Permission.WORKFLOWS_WRITE,
     Permission.CREDENTIALS_MANAGE,
     Permission.WEBHOOKS_MANAGE,
+    Permission.SCHEDULES_MANAGE,
 }
 _ADMIN = frozenset(Permission)
 

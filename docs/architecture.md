@@ -44,7 +44,7 @@ flowchart TB
 | `web` | nginx sin privilegios: SPA, CSP y proxy de `/api` al mismo origen | Peticiones por segundo (estático) |
 | `api` | HTTP, validación, autorización, encolado | Peticiones por segundo |
 | `worker` | Ejecución de pasos y llamadas externas | Trabajos pendientes / latencia externa |
-| `beat` | Recuperar ejecuciones colgadas, reenviar el outbox | No escala (una instancia) |
+| `beat` | Barrido cada 15 s: recuperar ejecuciones colgadas, reenviar el outbox y disparar las programaciones cron | No escala (una instancia) |
 | `migrate` | `alembic upgrade head` antes de arrancar la API | Una ejecución por despliegue |
 
 ## 3. Módulos del backend
@@ -67,6 +67,7 @@ api (routers, esquemas HTTP)  →  services (casos de uso)  →  repositories (S
 | `engine` | ✅ | Máquinas de estado, runner (reclamo/lease), barrido, cliente HTTP anti-SSRF, Celery |
 | `integrations` | ✅ | Credenciales cifradas (Fernet), adaptadores de autenticación, resolución en el worker |
 | `webhooks` | ✅ | Firma HMAC, triggers entrantes, outbox transaccional, entregas con dead-letter |
+| `schedules` | ✅ | Programaciones cron con zona horaria; el disparador corre en el barrido ([ADR-0012](adr/0012-programaciones-cron.md)) |
 | `audit` | ✅ | Registro de acciones sensibles y consulta con filtros y paginación por cursor |
 
 ## 4. Ciclo de una petición (implementado)
