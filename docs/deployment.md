@@ -190,8 +190,9 @@ Política, calendario y respuesta ante filtraciones: [key-rotation.md](key-rotat
 
   Hay un Prometheus + Grafana de referencia con un dashboard de 13 paneles y 9 alertas
   probadas (API caída, 5xx, latencia, cola sin vaciar, ejecuciones fallidas, revisión manual,
-  dead-letter de webhooks): [`deploy/observability/`](../deploy/observability/README.md). Sin
-  Alertmanager configurado **nadie recibe avisos**; es lo primero que debes añadir.
+  dead-letter de webhooks): [`deploy/observability/`](../deploy/observability/README.md), con
+  Alertmanager enviando a Slack (probado de extremo a extremo con un receptor falso; confirma
+  la entrega con tu webhook real).
 - **Programaciones cron**: las dispara `beat` (a través de la tarea de barrido, cada 15 s).
   **Si `beat` está parado, no se ejecuta ninguna programación**; vigílalo igual que al worker.
   Tras una caída, los disparos con más de 5 minutos de retraso

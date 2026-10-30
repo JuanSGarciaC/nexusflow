@@ -73,7 +73,7 @@ Lo que sigue lo dejo por escrito porque conocerlo es parte de defender el diseñ
 
 | Limitación | Impacto | Siguiente paso |
 |---|---|---|
-| Las alertas **no avisan a nadie**: hay reglas probadas, pero sin Alertmanager | Un incidente solo se ve si alguien mira Grafana | Alertmanager con un canal real |
+| Las alertas avisan por Slack, pero **no se ha probado contra un Slack real** y no hay escalado de guardia | Un fallo del webhook pasaría inadvertido hasta el primer incidente | Probar el webhook real; PagerDuty/Opsgenie si hay guardias |
 | Worker y beat no exportan métricas; su caída se detecta de forma indirecta | Falsos negativos si hay un patrón de cola atípico | Exporter de Celery |
 | Clave JWT única, sin `kid` | La rotación invalida los access tokens en vuelo (≤ 15 min) | `kid` y lista de claves de verificación |
 | Claves en `.env` del servidor | Sin auditoría de acceso a la clave | Vault/KMS |

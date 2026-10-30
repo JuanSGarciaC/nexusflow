@@ -1,0 +1,34 @@
+# Alertmanager de referencia: agrupa, deduplica e inhibe las alertas de alerts.yml y las
+# envía a Slack. La URL del webhook de Slack NO va aquí: se lee del archivo
+# secrets/slack_webhook_url (ver deploy/observability/README.md).
+#
+# Para otro canal (correo, PagerDuty, Teams, ntfy...) cambia el bloque `receivers`:
+# https://prometheus.io/docs/alerting/latest/configuration/#receiver-integration-settings
+route:
+  receiver: slack
+  group_by: [alertname]
+  group_wait: 30s       # espera por si salta otra alerta relacionada y las agrupa
+  group_interval: 5m    # intervalo entre avisos de un mismo grupo si cambia
+  repeat_interval: 4h   # recordatorio mientras siga activa
+  routes:
+    - matchers: [severity="critical"]
+      receiver: slack
+      repeat_interval: 1h  # lo crítico se recuerda más a menudo
+
+inhibit_rules:
+  # Si la API no responde, todas las demás métricas (incluidas las de negocio, que se leen
+  # a través de ella) dejan de tener sentido: un único aviso, no seis.
+  - source_matchers: [alertname="NexusFlowApiCaida"]
+    target_matchers: [alertname!="NexusFlowApiCaida"]
+
+receivers:
+  - name: slack
+    slack_configs:
+      - api_url_file: /etc/alertmanager/secrets/slack_webhook_url
+        channel: "#nexusflow-alertas"
+        send_resolved: true
+        title: '{{ if eq .Status "firing" }}🔥{{ else }}✅{{ end }} {{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})'
+        text: |-
+          {{ range .Alerts }}*{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          {{ end }}
