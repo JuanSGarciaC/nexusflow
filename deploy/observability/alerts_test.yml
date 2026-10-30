@@ -1,0 +1,115 @@
+# Tests unitarios de las reglas: `promtool test rules deploy/observability/alerts_test.yml`.
+# Cada caso fabrica series y comprueba QUÉ alerta salta y CUÁNDO (y que no salten las demás).
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  - name: API caída salta a los 2 minutos, no antes
+    interval: 1m
+    input_series:
+      - series: 'up{job="nexusflow"}'
+        values: "1 1 0 0 0 0"
+    alert_rule_test:
+      - { eval_time: 3m, alertname: NexusFlowApiCaida, exp_alerts: [] } # solo 1 min a 0
+      - eval_time: 5m
+        alertname: NexusFlowApiCaida
+        exp_alerts:
+          - exp_labels: { severity: critical, job: nexusflow }
+            exp_annotations:
+              summary: "La API de NexusFlow no responde al scrape"
+              description: "Prometheus no puede leer /metrics desde hace 2 minutos (API caída, red o token)."
+
+  - name: 5xx alerta con tráfico suficiente
+    interval: 1m
+    input_series:
+      # 10 % de errores sostenido (60 peticiones/min = 1 req/s en total)
+      - series: 'nexusflow_http_requests_total{status="200",route="/a",method="GET"}'
+        values: "0+54x20"
+      - series: 'nexusflow_http_requests_total{status="500",route="/a",method="GET"}'
+        values: "0+6x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: NexusFlowErrores5xx
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Más del 5 % de las peticiones terminan en 5xx"
+              description: "Tasa de errores del servidor 10% durante 5 minutos."
+
+  - name: 5xx con casi nada de tráfico no alerta
+    interval: 1m
+    input_series:
+      # 100 % de errores pero 0,03 req/s: ruido, no incidente
+      - series: 'nexusflow_http_requests_total{status="500",route="/a",method="GET"}'
+        values: "0+2x30"
+    alert_rule_test:
+      - { eval_time: 20m, alertname: NexusFlowErrores5xx, exp_alerts: [] }
+
+  - name: cola que nunca llega a cero indica que nadie consume
+    interval: 1m
+    input_series:
+      - series: 'nexusflow_runs{status="pending"}'
+        values: "3x30"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: NexusFlowColaSinVaciar
+        exp_alerts:
+          - exp_labels: { severity: critical, status: pending }
+            exp_annotations:
+              summary: "Hay ejecuciones pendientes que no se consumen"
+              description: "Siempre ha habido al menos una ejecución pendiente en 15 min: revisa worker, Redis y beat."
+
+  - name: cola que a veces se vacía no alerta (carga normal)
+    interval: 1m
+    input_series:
+      - series: 'nexusflow_runs{status="pending"}'
+        values: "3 2 1 0 2 3 0 1 4 0 2 1 3 0 2 1 3 0 2 1 3 0 2 1 3 0"
+    alert_rule_test:
+      - { eval_time: 25m, alertname: NexusFlowColaSinVaciar, exp_alerts: [] }
+
+  - name: dead-letter alerta tras 5 minutos
+    interval: 1m
+    input_series:
+      - series: 'nexusflow_webhook_deliveries_open{status="dead"}'
+        values: "0 0 2 2 2 2 2 2 2 2"
+    alert_rule_test:
+      - { eval_time: 5m, alertname: NexusFlowWebhookDeadLetter, exp_alerts: [] }
+      - eval_time: 9m
+        alertname: NexusFlowWebhookDeadLetter
+        exp_alerts:
+          - exp_labels: { severity: warning, status: dead }
+            exp_annotations:
+              summary: "Hay entregas de webhook en dead-letter"
+              description: "2 entregas agotaron sus reintentos: revisa el destino y reenvíalas."
+
+  - name: revisión manual alerta solo tras una hora
+    interval: 5m
+    input_series:
+      - series: 'nexusflow_steps_active{status="needs_review"}'
+        values: "1x20"
+    alert_rule_test:
+      - { eval_time: 30m, alertname: NexusFlowRevisionManualPendiente, exp_alerts: [] }
+      - eval_time: 70m
+        alertname: NexusFlowRevisionManualPendiente
+        exp_alerts:
+          - exp_labels: { severity: warning, status: needs_review }
+            exp_annotations:
+              summary: "Hay pasos esperando revisión manual desde hace más de 1 h"
+              description: "1 pasos en needs_review: una persona debe resolverlos (acción no idempotente con resultado incierto)."
+
+  - name: ráfaga de ejecuciones fallidas
+    interval: 1m
+    input_series:
+      - series: 'nexusflow_runs{status="failed"}'
+        values: "0 0 0 5 10 15 20 20 20"
+      - series: 'nexusflow_runs{status="timed_out"}'
+        values: "0x9"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: NexusFlowEjecucionesFallando
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "Más de 10 ejecuciones fallidas o con timeout en 15 min"
+              description: "21 ejecuciones nuevas fallidas: revisa el historial y los errores por paso."
