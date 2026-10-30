@@ -352,6 +352,58 @@ jobs:
             NEXUSFLOW_SECRET_KEY=x NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS=x \
             docker compose -f docker-compose.yml -f deploy/docker-compose.observability.yml config --quiet
 
+  produccion:
+    name: Producción (Caddy + HTTPS, comprobación desde fuera)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: .env de producción con secretos aleatorios y dominio localhost
+        # Con «localhost» Caddy emite un certificado de su CA interna: es el mismo camino que
+        # con un dominio real, salvo Let's Encrypt y el DNS (que no se pueden probar aquí).
+        run: |
+          cp .env.example .env
+          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" .env
+          sed -i "s/^REDIS_PASSWORD=.*/REDIS_PASSWORD=$(openssl rand -hex 24)/" .env
+          sed -i "s/^NEXUSFLOW_SECRET_KEY=.*/NEXUSFLOW_SECRET_KEY=$(openssl rand -hex 32)/" .env
+          FERNET=$(openssl rand -base64 32 | tr '+/' '-_')
+          sed -i "s|^NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS=.*|NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS=$FERNET|" .env
+          printf 'NEXUSFLOW_DOMAIN=localhost\nNEXUSFLOW_METRICS_TOKEN=%s\n' "$(openssl rand -hex 24)" >> .env
+      - name: Levantar el stack con el override de producción
+        run: |
+          docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+          for i in $(seq 1 60); do curl -ksf https://localhost/health/ready >/dev/null && exit 0; sleep 3; done
+          echo "El stack de producción no quedó listo" >&2; exit 1
+      - name: Comprobación desde fuera (HTTPS, cabeceras, superficie, sesión, puertos)
+        run: |
+          export COMPOSE_FILES="-f docker-compose.yml -f deploy/docker-compose.prod.yml"
+          PW="$(openssl rand -hex 12)-Ci1"
+          docker compose $COMPOSE_FILES exec -T -e NEXUSFLOW_ADMIN_PASSWORD="$PW" api \
+            nexusflow create-admin --email smoke-admin@example.com
+          CURL_OPTS=-k CHECK_PORTS=1 SMOKE_EMAIL=smoke-admin@example.com SMOKE_PASSWORD="$PW" \
+            scripts/smoke-prod.sh https://localhost
+      - name: La IP del cliente llega a la auditoría y una cabecera falsificada se ignora
+        run: |
+          export COMPOSE_FILES="-f docker-compose.yml -f deploy/docker-compose.prod.yml"
+          psql_q() { docker compose $COMPOSE_FILES exec -T postgres psql -U nexusflow -At -c "$1" </dev/null; }
+          curl -ks -o /dev/null -X POST https://localhost/api/v1/auth/login \
+            -H 'Content-Type: application/json' -H 'X-Forwarded-For: 6.6.6.6' \
+            -d "{\"email\":\"nadie@example.com\",\"password\":\"$(openssl rand -hex 10)-Zz9\"}"
+          spoofed="$(psql_q "select count(*) from audit_log where ip_address = '6.6.6.6'")"
+          caddy_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker compose $COMPOSE_FILES ps -q caddy)")"
+          via_proxy="$(psql_q "select count(*) from audit_log where ip_address = '$caddy_ip'")"
+          recorded="$(psql_q "select count(*) from audit_log where action like 'auth.login%' and ip_address is not null")"
+          echo "IP falsificada registrada: $spoofed | IP de Caddy ($caddy_ip) registrada: $via_proxy | accesos con IP: $recorded"
+          [ "$spoofed" = "0" ] && [ "$via_proxy" = "0" ] && [ "$recorded" -ge 1 ]
+      - name: Logs del stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml logs --no-color --tail 80
+      - name: Apagar
+        if: always()
+        run: docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml down -v
+
   trivy:
     name: Imágenes (Trivy HIGH/CRITICAL)
     runs-on: ubuntu-24.04
