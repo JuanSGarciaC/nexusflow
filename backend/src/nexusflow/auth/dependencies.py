@@ -17,7 +17,7 @@ from nexusflow.auth.permissions import Permission, has_permission
 from nexusflow.auth.tokens import decode_access_token
 from nexusflow.core.config import Settings
 from nexusflow.core.errors import ForbiddenError, UnauthorizedError
-from nexusflow.core.rate_limit import RateLimiter
+from nexusflow.core.rate_limit import RateLimit, RateLimiter
 from nexusflow.db.session import get_session
 
 # auto_error=False: la ausencia de token se convierte en nuestro 401 RFC 9457 en lugar del
@@ -85,3 +85,29 @@ def require_permission(permission: Permission) -> Callable[[User], Awaitable[Use
         return user
 
     return _check
+
+
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+async def limit_writes(
+    request: Request, user: CurrentUser, settings: SettingsDep, limiter: RateLimiterDep
+) -> None:
+    """Límite de escrituras por usuario autenticado (las lecturas no cuentan).
+
+    Va como dependencia de router: se aplica a todas sus rutas sin repetirla en cada una.
+    `CurrentUser` se resuelve una sola vez por petición (FastAPI cachea la dependencia),
+    así que no añade una segunda consulta a la base de datos.
+    """
+    if request.method in _SAFE_METHODS:
+        return
+    rule = RateLimit("write_user", settings.write_rate_limit_per_user, 60)
+    await limiter.hit(rule, str(user.id))
+
+
+async def limit_webhook_dispatch(
+    user: CurrentUser, settings: SettingsDep, limiter: RateLimiterDep
+) -> None:
+    """Límite más estricto para acciones que disparan una petición HTTP saliente."""
+    rule = RateLimit("webhook_dispatch_user", settings.webhook_dispatch_rate_limit_per_user, 60)
+    await limiter.hit(rule, str(user.id))

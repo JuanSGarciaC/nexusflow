@@ -7,13 +7,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 
-from nexusflow.auth.dependencies import ContextDep, SessionDep, require_permission
+from nexusflow.auth.dependencies import ContextDep, SessionDep, limit_writes, require_permission
 from nexusflow.auth.models import User
 from nexusflow.auth.permissions import Permission
 from nexusflow.schedules import service
 from nexusflow.schedules.schemas import ScheduleCreate, ScheduleUpdate, ScheduleView
 
-router = APIRouter(prefix="/api/v1", tags=["programaciones"])
+router = APIRouter(prefix="/api/v1", tags=["programaciones"], dependencies=[Depends(limit_writes)])
 
 Manager = Annotated[User, Depends(require_permission(Permission.SCHEDULES_MANAGE))]
 
