@@ -88,7 +88,9 @@ def test_validation_error_does_not_echo_input(client: TestClient) -> None:
     assert body["type"].endswith("/validation-error")
     assert body["errors"][0]["loc"] == ["query", "limit"]
     assert "input" not in body["errors"][0]
-    assert "999" not in response.text
+    # Sin request_id: es un hex aleatorio y a veces contiene «999» (el test era intermitente).
+    echoed = str({k: v for k, v in body.items() if k != "request_id"})
+    assert "999" not in echoed
 
 
 def test_unhandled_error_hides_internals(client: TestClient) -> None:
