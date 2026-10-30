@@ -138,11 +138,13 @@ demasiado ruidoso para umbrales ajustados.
 El umbral de **85 %** del backend (`fail_under = 85` en `pyproject.toml`) lo aplica
 `pytest --cov` en el CI: si baja, el job falla. Última medición completa en local, en la rama del PR de rate limiting (366
 pruebas, unitarias e integración contra PostgreSQL y Redis reales): **87,98 %**. El frontend
-tiene un **suelo** en `vite.config.ts` (63 % sentencias, 54 % ramas, 50 % funciones, 64 %
-líneas) que el CI aplica con `pnpm test:coverage`. Lo medido hoy es 65,7 % / 56,7 % / 52 % /
-66,7 %: **es una cobertura modesta**, y las pantallas de auditoría y credenciales están al 0 %
-en Vitest (las ejercita Playwright E2E, que no cuenta en esta cifra). El suelo solo impide
-retroceder; el objetivo es subirlo añadiendo pruebas de esas pantallas.
+tiene un **suelo** en `vite.config.ts` (72 % sentencias, 61 % ramas, 61 % funciones, 72 %
+líneas) que el CI aplica con `pnpm test:coverage`. Lo medido hoy es 74,2 % / 63,8 % / 63,6 % /
+74,8 %: **sigue siendo una cobertura moderada**. Las pantallas de auditoría y credenciales ya
+tienen pruebas de componentes (`audit-credentials.test.tsx`; auditoría al 100 % de sentencias),
+pero siguen flojas la lista de ejecuciones (0 %), el alta de flujos (0 %), el detalle de flujo
+(44 %) y usuarios (56 %). Playwright E2E las ejercita, pero no cuenta en esta cifra. El suelo
+solo impide retroceder.
 
 ## Reproducir
 
