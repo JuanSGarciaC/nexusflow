@@ -106,8 +106,8 @@ jobs:
         run: pnpm lint
       - name: TypeScript
         run: pnpm typecheck
-      - name: Vitest
-        run: pnpm test
+      - name: Vitest (cobertura con umbral mínimo)
+        run: pnpm test:coverage
       - name: Build de producción
         run: pnpm build
       - name: Auditoría de dependencias de producción
