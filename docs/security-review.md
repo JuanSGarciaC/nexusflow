@@ -78,7 +78,9 @@ comprueba**: una afirmación sin prueba automatizada no cuenta como control.
   **Limitaciones.** Siguen sin límite las lecturas (listados, analytics, auditoría); la
   ventana fija permite hasta 2× el límite en el borde entre ventanas; los valores
   (120 y 10) son una estimación razonable para un uso humano, no el resultado de una
-  medición de carga (eso llegará con las pruebas de k6). Los 429 de estas rutas no están
+  medición de carga: [la prueba de k6](../loadtest/rate-limits.js) valida el *mecanismo* bajo
+  tráfico sostenido (se aplica, la ventana se reabre, `Retry-After` válido, sin 5xx), pero no
+  los *valores*, que siguen sin salir de datos de uso reales. Los 429 de estas rutas no están
   declarados en el contrato OpenAPI (el de la creación de ejecuciones sí).
 - **IP del cliente.** Cada salto solo confía en `X-Forwarded-For` si viene del salto
   anterior, con una IP fija (Caddy → nginx → API). Una cabecera falsificada se ignora

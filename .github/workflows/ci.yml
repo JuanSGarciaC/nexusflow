@@ -241,6 +241,13 @@ jobs:
             -e MOCK_PARTNER_CRM_TOKEN="$MOCK_PARTNER_CRM_TOKEN" \
             -e MOCK_PARTNER_PAYMENTS_KEY="$MOCK_PARTNER_PAYMENTS_KEY" \
             api nexusflow seed-demo --runs 2
+      - name: Límites de uso bajo carga (k6, límites por defecto)
+        # Va antes que cualquier otra carga y que los E2E: la ventana fija exige usuarios que no
+        # hayan escrito en el último minuto. 75 s.
+        run: |
+          docker run --rm --network container:"$(docker compose ps -q api)" \
+            -v "$PWD/loadtest:/loadtest:ro" -e NEXUSFLOW_DEMO_PASSWORD="$E2E_PASSWORD" \
+            grafana/k6:2.3.0 run --quiet /loadtest/rate-limits.js
       - name: Copia de PostgreSQL y restauración verificada
         # El stack sigue vivo (el worker y beat escriben), por eso no se exige igualdad de
         # filas: la copia nunca puede tener MÁS que el origen y debe restaurarse sin errores.
@@ -292,6 +299,10 @@ jobs:
           docker run --rm --network container:"$(docker compose ps -q api)" \
             -v "$PWD/loadtest:/loadtest:ro" -e NEXUSFLOW_DEMO_PASSWORD="$E2E_PASSWORD" \
             -e RATE=20 -e DURATION=20s grafana/k6:2.3.0 run /loadtest/concurrent-runs.js
+          # Pasos HTTP que fallan 2 veces y reintentan, bajo concurrencia
+          docker run --rm --network container:"$(docker compose ps -q api)" \
+            -v "$PWD/loadtest:/loadtest:ro" -e NEXUSFLOW_DEMO_PASSWORD="$E2E_PASSWORD" \
+            -e SCENARIO=retries -e RATE=5 -e DURATION=20s grafana/k6:2.3.0 run /loadtest/concurrent-runs.js
           loadtest/check-integrity.sh
       - name: Logs del stack
         if: always()

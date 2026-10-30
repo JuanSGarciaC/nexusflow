@@ -62,8 +62,10 @@ disco ni tu proveedor, y el tiempo de recuperación con datos reales no está me
 Límites por IP en registro/login/refresh, por usuario en escrituras (120/min) y más estricto
 (10/min) en acciones que provocan una petición saliente, y por webhook en las entradas. Todos
 fallan cerrado si Redis cae. Es ventana fija: permite hasta 2× el límite en el borde de dos
-ventanas. Los valores 120 y 10 son una estimación, no un resultado de carga
-([security-review.md](security-review.md)).
+ventanas. Medí bajo carga que el mecanismo se comporta como predice la teoría (164 aceptadas =
+120 + 44, 429 con `Retry-After` válido, rechazo en ~34 ms), pero los valores 120 y 10 siguen
+siendo un tope razonable y no un resultado de datos de uso reales
+([performance.md](performance.md#límites-de-uso-medidos)).
 
 **«¿Qué cambiarías con más tiempo?»** → sección siguiente.
 
@@ -79,7 +81,7 @@ Lo que sigue lo dejo por escrito porque conocerlo es parte de defender el diseñ
 | Claves en `.env` del servidor | Sin auditoría de acceso a la clave | Vault/KMS |
 | La API se sirve con un solo proceso | Es el cuello de botella medido | Más réplicas o `--workers`, y repetir la medición |
 | RPO = intervalo entre copias (24 h con copia diaria); sin PITR | Se puede perder un día | WAL archiving (pgBackRest/wal-g) o base gestionada |
-| La prueba de carga solo usa pasos locales | No mide terceros, reintentos ni histórico grande | Escenario con `mock-partner` y fallos inyectados |
+| La carga cubre pasos locales y un paso HTTP con reintentos contra un servicio simulado | No mide terceros reales, ejecuciones largas, caídas de worker ni histórico grande | Escenarios con kill del worker y base con histórico |
 | El frontend no tiene umbral de cobertura | La cobertura de la interfaz puede bajar sin que el CI avise | Umbral en Vitest |
 | Los 429 de las escrituras no están en el contrato OpenAPI | Los clientes generados no los tipan | Declararlos y regenerar los tipos |
 | Sin captura/GIF de la demo | Menos inmediato para quien solo lea el README | Grabarlo (ver [README](../README.md#capturas)) |

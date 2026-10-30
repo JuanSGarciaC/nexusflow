@@ -76,9 +76,57 @@ Lectura honesta de los resultados:
   largas, reintentos bajo carga, varios workers ni una base con mucho histórico. Tampoco son
   números de producción: otra máquina dará otras cifras. Úsalas para comparar versiones
   entre sí, no como promesa.
+- **Reintentos y límites:** ver más abajo, en «Pasos HTTP con reintentos» y «Límites de uso
+  medidos».
 - **Rate limiting:** la prueba sube el límite de creación (120/min por usuario) porque, con
   el valor por defecto, lo correcto es que cortara la carga con 429. Ese comportamiento lo
   cubren las pruebas de integración, no k6.
+
+### Pasos HTTP con reintentos
+
+`SCENARIO=retries`: cada ejecución hace un cobro HTTP al servicio simulado que falla 2 veces
+con 503 y acierta a la tercera (backoff de 1 s y 2 s). Mismo entorno que arriba.
+
+| Ritmo | Ejecuciones | Finalización p95 | Correctas | Intentos por paso | Cobros |
+|---|---|---|---|---|---|
+| 5 / s, 20 s | 98 | 3,5 s | 100 % | **exactamente 3** en las 98 | **98** (uno por ejecución) |
+| 5 / s, 20 s (repetición) | 101 | 3,9 s | 100 % | **exactamente 3** | 101 |
+
+- La integridad bajo reintentos concurrentes se cumple: ni un intento de más (ejecución
+  doble) ni un cobro duplicado o perdido. El suelo teórico de finalización es ~3 s por los
+  dos backoffs; se mide 2,8 s de media.
+- **Latencia de creación: no la tengo bien explicada.** En las dos primeras tandas (justo
+  tras reiniciar la API y con el worker aún acabando trabajo) el p95 fue de 1,2 s y 0,86 s;
+  con todo en caliente, 48 ms a 2/s y 103 ms a 5/s. No he aislado la causa (arranque en frío,
+  cola atrasada o contención de CPU en Docker Desktop). Por eso este escenario tiene su
+  propio umbral, más holgado (1,5 s), y no debe leerse como «la API tarda 1 s».
+- Un sondeo agresivo (cada 50 ms) con ejecuciones de varios segundos genera cientos de
+  lecturas/s y falsea la latencia; este escenario sondea cada 250 ms.
+- No cubre: ejecuciones largas, `needs_review`, caídas de worker ni varios workers.
+
+### Límites de uso medidos
+
+[`rate-limits.js`](../loadtest/rate-limits.js), con los límites **por defecto**, dos
+usuarios en paralelo a 3 peticiones/s durante 75 s (225 intentos cada uno):
+
+| Límite | Aceptadas | Rechazadas (429) | `Retry-After` válido | Rechazo p95 | Otros estados |
+|---|---|---|---|---|---|
+| Crear ejecuciones (120/min) | 164–165 | 61 | 100 % | 33–34 ms | 0 |
+| Escrituras `PATCH` (120/min) | 164 (+2 de preparación) | 62 | 100 % | 33–34 ms | 0 |
+
+- **Coincide con la teoría de la ventana fija:** 120 en el primer minuto + ~45 en los últimos
+  15 s, ya en la ventana siguiente. Demuestra a la vez que **el límite se aplica**, que
+  **la ventana se reabre** y que el máximo (2× en el borde) no se supera.
+- **Rechazar es barato:** p95 de ~34 ms, comparable a una petición normal; un cliente que
+  ignora el 429 no degrada a la API ni provoca ningún 5xx.
+- **Esto valida el MECANISMO, no los valores.** 120/min por usuario no sale de datos de uso
+  reales: es un tope razonable para una persona y para integraciones modestas. Si un cliente
+  máquina a máquina legítimo necesita más, se sube por entorno
+  (`NEXUSFLOW_WRITE_RATE_LIMIT_PER_USER`). El límite de `ping`/`redeliver` (10/min) lo cubren
+  las pruebas de integración, no k6, para no provocar peticiones salientes reales.
+- Lección del propio ejercicio: una primera ejecución dio **cero 429 en las escrituras**
+  porque la imagen local era anterior a la fusión del límite. La prueba lo detectó (en CI no
+  puede ocurrir: el runner construye las imágenes desde cero).
 
 **En CI** corre una versión corta (20 ejecuciones/s durante 20 s) con umbrales muy holgados
 (creación p95 < 500 ms, finalización p95 < 3 s, 100 % correctas) más la comprobación de
