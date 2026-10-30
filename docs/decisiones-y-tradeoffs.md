@@ -89,7 +89,8 @@ Lo que sigue lo dejo por escrito porque conocerlo es parte de defender el diseñ
 ## Lo que NO afirmo
 
 - **No está en producción.** Todo se ha verificado en local y en CI, sobre datos de
-  demostración.
+  demostración. El despliegue con Caddy y HTTPS se prueba en CI con `localhost` (CA interna);
+  no he podido probar Let's Encrypt, DNS ni firewall de un proveedor real.
 - Las cifras de rendimiento son de **una máquina de desarrollo**; sirven para comparar
   versiones entre sí, no como promesa.
 - «Probado» significa que hay una prueba que falla si se rompe; en cada documento se indica

@@ -60,12 +60,38 @@ docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml exec api 
   nexusflow create-admin --email admin@tu-empresa.com
 ```
 
-Comprueba:
+Comprueba (lo rápido a mano):
 
 ```bash
 curl -fsS https://nexusflow.tu-empresa.com/health/ready
 curl -sI  https://nexusflow.tu-empresa.com/ | grep -iE "strict-transport|content-security"
 ```
+
+### Comprobación completa desde fuera
+
+```bash
+SMOKE_EMAIL=admin@tu-empresa.com SMOKE_PASSWORD='...' CHECK_PORTS=1 \
+  scripts/smoke-prod.sh https://nexusflow.tu-empresa.com
+```
+
+[`scripts/smoke-prod.sh`](../scripts/smoke-prod.sh) mira el despliegue como lo vería un
+cliente o un atacante: HTTP redirige a HTTPS y el **certificado es válido** (sin `-k`),
+HSTS ≥ 1 año, CSP restrictiva, `Server` sin versión, `/docs`, `/openapi.json` y `/metrics`
+cerrados, API sin token → 401, registro público desactivado, PostgreSQL (5432), Redis
+(6379) y la API (8000) **no publicados**, y con credenciales: cookie de sesión
+`HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth` y misma respuesta 401 para un
+usuario inexistente y una contraseña errónea (sin enumeración de usuarios).
+
+**Qué está probado y qué no.** El CI levanta este mismo stack de producción (override `prod`,
+Caddy con HTTPS) con el dominio `localhost` —Caddy emite un certificado de su CA interna— y
+ejecuta ese script, además de comprobar que la **IP del cliente** llega a la auditoría (no la
+de Caddy ni la de nginx) y que un `X-Forwarded-For` falsificado desde fuera se ignora. Eso
+prueba la configuración, las cabeceras y la cadena de proxies. **No prueba, porque necesita
+un servidor y un dominio reales:** que el DNS apunte bien, que Let's Encrypt emita y renueve
+(puertos 80/443 abiertos, límites de emisión), el firewall del proveedor ni que la IP real
+del cliente se conserve en tu red (en Docker Desktop el cliente aparece como la puerta de
+enlace de Docker, `172.28.0.1`; en un VPS Linux debería verse la IP pública, pero
+compruébalo en `audit_log` tras tu primer acceso).
 
 Qué hace el override de producción ([`deploy/docker-compose.prod.yml`](../deploy/docker-compose.prod.yml)):
 
