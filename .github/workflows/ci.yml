@@ -247,6 +247,22 @@ jobs:
         run: |
           BACKUP_DIR="$RUNNER_TEMP/backups" scripts/backup.sh
           scripts/restore-check.sh "$(ls "$RUNNER_TEMP"/backups/nexusflow-*.dump)"
+      - name: Copia cifrada con age, subida a un remoto y restauración desde él
+        # El «remoto» es una carpeta local: prueba el flujo, no un proveedor real (S3, B2...).
+        run: |
+          sudo apt-get install -y -qq age rclone
+          age-keygen -o "$RUNNER_TEMP/age.key" 2>/dev/null
+          age-keygen -o "$RUNNER_TEMP/otra.key" 2>/dev/null
+          BACKUP_DIR="$RUNNER_TEMP/enc" BACKUP_AGE_RECIPIENT="$(age-keygen -y "$RUNNER_TEMP/age.key")" scripts/backup.sh
+          # El archivo cifrado no contiene texto legible de la base de datos
+          # (con `! cmd` bash -e no falla nunca: se usa if explícito)
+          if grep -aq "workflow_runs" "$RUNNER_TEMP"/enc/*.age; then echo "La copia cifrada contiene texto legible" >&2; exit 1; fi
+          BACKUP_DIR="$RUNNER_TEMP/enc" scripts/backup-offsite.sh "$RUNNER_TEMP/remote"
+          AGE_IDENTITY="$RUNNER_TEMP/age.key" scripts/restore-check.sh "$RUNNER_TEMP"/remote/nexusflow-*.dump.age
+          # Con otra clave privada no se puede restaurar
+          if AGE_IDENTITY="$RUNNER_TEMP/otra.key" scripts/restore-check.sh "$RUNNER_TEMP"/remote/nexusflow-*.dump.age; then
+            echo "Se pudo restaurar con una clave equivocada" >&2; exit 1
+          fi
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"

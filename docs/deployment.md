@@ -116,10 +116,26 @@ Programarla a diario con cron (copia a las 03:15, ajusta la ruta):
 15 3 * * * cd /opt/nexusflow && COMPOSE_FILES="-f docker-compose.yml -f deploy/docker-compose.prod.yml" scripts/backup.sh >> /var/log/nexusflow-backup.log 2>&1
 ```
 
-**Fuera de la VM.** Una copia en el mismo disco no protege del fallo del disco. Sube cada
-copia a otro sitio, por ejemplo con `rclone copy ./backups remoto:nexusflow-backups` o
-`aws s3 cp`. Esto último **no está automatizado ni probado en el repo**: depende del
-proveedor.
+**Cifrada y fuera de la VM.** Una copia en el mismo disco no protege del fallo del disco, y
+una copia en claro fuera de él es una fuga de datos. El flujo recomendado:
+
+```bash
+age-keygen -o age.key            # UNA vez. Guarda age.key en un gestor de secretos, NO en la VM
+export BACKUP_AGE_RECIPIENT=age1...     # la clave PÚBLICA que imprime age-keygen
+scripts/backup.sh                # → backups/nexusflow-....dump.age (cifrada)
+rclone config                    # una vez: S3, Backblaze B2, SFTP...
+scripts/backup-offsite.sh remoto:nexusflow-backups
+```
+
+[`scripts/backup-offsite.sh`](../scripts/backup-offsite.sh) **se niega a subir volcados sin
+cifrar**, usa `rclone copy` (un borrado en el origen nunca borra el remoto), verifica con
+`rclone check` que lo subido es idéntico y aplica una retención remota aparte (30 días).
+La VM solo necesita la clave **pública**: si la roban, el atacante puede *crear* copias pero
+no *leer* las existentes. Para restaurar se necesita la privada:
+`AGE_IDENTITY=age.key scripts/restore-check.sh copia.dump.age`.
+
+**Si pierdes `age.key`, las copias cifradas son irrecuperables.** Guárdala en al menos dos
+sitios independientes de la VM y de las claves Fernet.
 
 ### Probar la restauración
 
@@ -157,8 +173,9 @@ almacén. Sin ellas la base se restaura pero las credenciales no se pueden desci
   usa una base gestionada o `pgBackRest`/`wal-g`.
 - **RTO no medido**: la prueba del CI usa datos de demostración (unos 50 KB); el tiempo con
   datos reales depende del tamaño y no se ha medido.
-- **El CI prueba el mecanismo, no tu disco ni tu proveedor**: la copia fuera de la VM y el
-  cifrado con `age` no están cubiertos por el CI (`age` no se ha ejecutado aquí).
+- **El CI prueba el mecanismo, no tu proveedor**: ejecuta copia cifrada con `age`, subida con
+  `rclone` a un destino **local** y restauración desde esa copia. No prueba S3/B2/SFTP reales
+  (credenciales, permisos, tamaños grandes, cortes de red).
 - Las claves Fernet **no** van en la copia (adrede): guárdalas aparte
   ([key-rotation.md](key-rotation.md)); si van juntas, quien robe la copia tiene también
   los secretos.
