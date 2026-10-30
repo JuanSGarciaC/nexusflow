@@ -25,7 +25,7 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Ejecuciones en curso",
+      "title": "En curso",
       "description": "Ejecuciones en estado running ahora mismo.",
       "datasource": {
         "type": "prometheus",
@@ -81,7 +81,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Ejecuciones pendientes",
+      "title": "Pendientes",
       "description": "En cola. Si nunca baja a 0 durante 15 min, nadie las consume (alerta NexusFlowColaSinVaciar).",
       "datasource": {
         "type": "prometheus",
@@ -137,7 +137,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Pasos en revisión manual",
+      "title": "Revisión manual",
       "description": "Requieren que una persona los resuelva.",
       "datasource": {
         "type": "prometheus",
@@ -197,7 +197,7 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Webhooks en dead-letter",
+      "title": "Dead-letter",
       "description": "Entregas que agotaron sus reintentos.",
       "datasource": {
         "type": "prometheus",

@@ -71,7 +71,9 @@ Los umbrales son una estimación para una instalación pequeña: **ajústalos a 
 - **Gauges desde PostgreSQL**: `nexusflow_runs` cuenta cuántas ejecuciones hay en cada
   estado; «nuevas fallidas» se aproxima con `delta()`, que extrapola a los bordes de la
   ventana y bajaría si se borrara histórico.
-- **No he podido capturar una imagen del dashboard** (el navegador de Playwright de esta
-  máquina no estaba instalado); el dashboard se verificó por API, no visualmente.
+- La captura de `docs/screenshots/10-grafana.png` es real (Playwright contra Grafana 13.3.0
+  con el stack y una carga de k6 de ≈12 ejecuciones/s), pero es una sola captura de una
+  máquina de desarrollo: no demuestra el comportamiento con incidentes (todas las alertas
+  estaban en reposo).
 - **Probado en local con Docker Desktop**, no en un VPS, y no probado con Grafana detrás de
   un proxy.
