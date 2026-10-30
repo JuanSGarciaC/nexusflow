@@ -306,6 +306,18 @@ jobs:
             -v "$PWD/deploy/observability/alerts.yml:/etc/prometheus/alerts.yml:ro" \
             -v "$RUNNER_TEMP/secrets:/etc/prometheus/secrets:ro" \
             prom/prometheus:v3.15.1 check config /etc/prometheus/prometheus.yml
+      - name: Alertmanager (configuración y enrutado de una alerta crítica)
+        run: |
+          mkdir -p "$RUNNER_TEMP/amsecrets" && printf http://localhost/x > "$RUNNER_TEMP/amsecrets/slack_webhook_url"
+          am() {
+            docker run --rm --entrypoint amtool \
+              -v "$PWD/deploy/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro" \
+              -v "$RUNNER_TEMP/amsecrets:/etc/alertmanager/secrets:ro" \
+              prom/alertmanager:v0.28.1 "$@"
+          }
+          am check-config /etc/alertmanager/alertmanager.yml
+          am config routes test --config.file=/etc/alertmanager/alertmanager.yml \
+            --verify.receivers=slack alertname=NexusFlowApiCaida severity=critical
       - name: Validar el override de compose
         run: |
           cp .env.example .env

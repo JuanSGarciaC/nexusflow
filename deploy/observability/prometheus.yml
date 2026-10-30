@@ -16,8 +16,8 @@ scrape_configs:
     static_configs:
       - targets: ["api:8000"]
 
-# Sin Alertmanager configurado: las alertas se ven en la UI de Prometheus y en Grafana.
-# Para recibir avisos (correo, Slack, PagerDuty) añade un Alertmanager aquí:
-# alerting:
-#   alertmanagers:
-#     - static_configs: [{ targets: ["alertmanager:9093"] }]
+# Las alertas disparadas se envían a Alertmanager, que las agrupa y notifica (alertmanager.yml).
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
