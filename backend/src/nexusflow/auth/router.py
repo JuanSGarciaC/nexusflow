@@ -14,6 +14,7 @@ from nexusflow.auth.dependencies import (
     RateLimiterDep,
     SessionDep,
     SettingsDep,
+    limit_writes,
     require_permission,
 )
 from nexusflow.auth.models import User
@@ -188,6 +189,7 @@ async def list_users(
     "/{user_id}",
     response_model=UserResponse,
     summary="Cambiar rol o estado de un usuario",
+    dependencies=[Depends(limit_writes)],
     responses={
         403: {"description": "Sin permiso o intento de modificarse a sí mismo", **_PROBLEM},
         404: {"description": "El usuario no existe", **_PROBLEM},

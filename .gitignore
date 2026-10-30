@@ -34,3 +34,6 @@ Thumbs.db
 
 # Token de métricas para Prometheus (deploy/observability/README.md)
 deploy/observability/secrets/
+
+# Copias de seguridad locales (scripts/backup.sh)
+backups/

@@ -8,7 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from nexusflow.auth.dependencies import ContextDep, SessionDep, require_permission
+from nexusflow.auth.dependencies import ContextDep, SessionDep, limit_writes, require_permission
 from nexusflow.auth.models import User
 from nexusflow.auth.permissions import Permission
 from nexusflow.workflows import service
@@ -29,7 +29,9 @@ from nexusflow.workflows.schemas import (
 )
 from nexusflow.workflows.validation import validate_definition
 
-router = APIRouter(prefix="/api/v1/workflows", tags=["workflows"])
+router = APIRouter(
+    prefix="/api/v1/workflows", tags=["workflows"], dependencies=[Depends(limit_writes)]
+)
 
 _PROBLEM: dict[str, object] = {"content": {"application/problem+json": {}}}
 Reader = Annotated[User, Depends(require_permission(Permission.WORKFLOWS_READ))]

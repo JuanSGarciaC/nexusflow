@@ -12,6 +12,8 @@ from nexusflow.auth.dependencies import (
     RateLimiterDep,
     SessionDep,
     SettingsDep,
+    limit_webhook_dispatch,
+    limit_writes,
     require_permission,
 )
 from nexusflow.auth.models import User
@@ -36,7 +38,7 @@ from nexusflow.webhooks.schemas import (
 )
 from nexusflow.webhooks.signing import EVENT_ID_HEADER, SIGNATURE_HEADER
 
-router = APIRouter(prefix="/api/v1", tags=["webhooks"])
+router = APIRouter(prefix="/api/v1", tags=["webhooks"], dependencies=[Depends(limit_writes)])
 inbound_router = APIRouter(prefix="/api/v1/hooks", tags=["webhooks (entrada pública)"])
 
 _PROBLEM: dict[str, object] = {"content": {"application/problem+json": {}}}
@@ -276,6 +278,7 @@ async def delete_subscription(
     "/webhook-subscriptions/{subscription_id}/ping",
     status_code=status.HTTP_202_ACCEPTED,
     summary="Enviar un evento de prueba",
+    dependencies=[Depends(limit_webhook_dispatch)],
 )
 async def ping(
     subscription_id: uuid.UUID, session: SessionDep, dispatcher: DispatcherDep, _: Manager
@@ -312,6 +315,7 @@ async def list_deliveries(
     "/webhook-deliveries/{delivery_id}/redeliver",
     response_model=DeliveryView,
     summary="Reenviar una entrega (mismo event_id)",
+    dependencies=[Depends(limit_webhook_dispatch)],
 )
 async def redeliver(
     delivery_id: uuid.UUID,

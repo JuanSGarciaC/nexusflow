@@ -96,21 +96,72 @@ docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --b
 PostgreSQL es la única fuente de verdad. Redis solo guarda la cola y los contadores de
 límites; perderlo no pierde datos, porque el barrido periódico reencola lo pendiente.
 
-```bash
-# Copia diaria (cron) comprimida y con fecha
-docker compose exec -T postgres pg_dump -U nexusflow -Fc nexusflow > backup-$(date +%F).dump
+### Hacer la copia
 
-# Restauración (con la API y el worker parados)
-docker compose stop api worker beat
-docker compose exec -T postgres pg_restore -U nexusflow -d nexusflow --clean < backup-AAAA-MM-DD.dump
-docker compose start api worker beat
+```bash
+# Con el override de producción; sin él, omite COMPOSE_FILES
+export COMPOSE_FILES="-f docker-compose.yml -f deploy/docker-compose.prod.yml"
+scripts/backup.sh          # → ./backups/nexusflow-AAAAMMDDTHHMMSSZ.dump
 ```
 
-- Cifra las copias y guárdalas fuera de la VM.
-- **Las claves de `NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS` se guardan aparte de las copias.**
-  Sin ellas, las credenciales de integraciones no se pueden descifrar; si van juntas, quien
-  robe la copia tiene también los secretos.
-- Prueba la restauración periódicamente: una copia que nunca se restauró no es una copia.
+[`scripts/backup.sh`](../scripts/backup.sh) hace `pg_dump -Fc` (comprimido, permite
+restaurar tablas sueltas), lo escribe en un archivo temporal y solo lo renombra si
+`pg_restore --list` puede leerlo (nunca queda una copia a medias con aspecto de válida),
+aplica permisos `600` y borra las de más de 14 días (`BACKUP_RETENTION_DAYS`). Si defines
+`BACKUP_AGE_RECIPIENT` (clave pública de [age](https://age-encryption.org)), la cifra.
+
+Programarla a diario con cron (copia a las 03:15, ajusta la ruta):
+
+```cron
+15 3 * * * cd /opt/nexusflow && COMPOSE_FILES="-f docker-compose.yml -f deploy/docker-compose.prod.yml" scripts/backup.sh >> /var/log/nexusflow-backup.log 2>&1
+```
+
+**Fuera de la VM.** Una copia en el mismo disco no protege del fallo del disco. Sube cada
+copia a otro sitio, por ejemplo con `rclone copy ./backups remoto:nexusflow-backups` o
+`aws s3 cp`. Esto último **no está automatizado ni probado en el repo**: depende del
+proveedor.
+
+### Probar la restauración
+
+```bash
+scripts/restore-check.sh backups/nexusflow-AAAAMMDDTHHMMSSZ.dump
+```
+
+[`scripts/restore-check.sh`](../scripts/restore-check.sh) restaura en una base
+**temporal** (no toca la real ni para servicios, así que es seguro en producción) y
+comprueba: que `pg_restore` termina sin errores, que existen las mismas tablas, que la
+versión de migración coincide y que ninguna tabla tiene más filas que el origen (con
+`STRICT_COUNTS=1`, exactamente las mismas; úsalo solo sin tráfico). Después borra la base
+temporal. **El CI ejecuta copia + restauración en cada cambio** sobre el stack con datos de
+demostración, así que si alguien rompe el esquema o el formato de la copia, el CI falla.
+
+Probado con una copia truncada, una copia con más filas que el origen y un archivo vacío:
+en los tres casos el script termina con error.
+
+### Restaurar de verdad (desastre)
+
+```bash
+docker compose $COMPOSE_FILES stop api worker beat
+docker compose $COMPOSE_FILES exec -T postgres pg_restore -U nexusflow -d nexusflow --clean --if-exists < backups/nexusflow-AAAA.dump
+docker compose $COMPOSE_FILES start api worker beat
+```
+
+Si perdiste la VM entera: despliega de nuevo (secciones 2 y 3), restaura la copia con el
+comando anterior y recupera las claves `NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS` de su
+almacén. Sin ellas la base se restaura pero las credenciales no se pueden descifrar.
+
+### Lo que esto NO garantiza
+
+- **RPO = intervalo entre copias**: con una copia diaria se pueden perder hasta 24 h de
+  datos. No hay archivado de WAL ni recuperación a un instante (PITR); si hace falta,
+  usa una base gestionada o `pgBackRest`/`wal-g`.
+- **RTO no medido**: la prueba del CI usa datos de demostración (unos 50 KB); el tiempo con
+  datos reales depende del tamaño y no se ha medido.
+- **El CI prueba el mecanismo, no tu disco ni tu proveedor**: la copia fuera de la VM y el
+  cifrado con `age` no están cubiertos por el CI (`age` no se ha ejecutado aquí).
+- Las claves Fernet **no** van en la copia (adrede): guárdalas aparte
+  ([key-rotation.md](key-rotation.md)); si van juntas, quien robe la copia tiene también
+  los secretos.
 
 ## 6. Rotación de secretos
 
@@ -154,7 +205,7 @@ Política, calendario y respuesta ante filtraciones: [key-rotation.md](key-rotat
 - [ ] Solo los puertos 80/443 abiertos en el cortafuegos.
 - [ ] `NEXUSFLOW_ENV=production` (lo pone el override).
 - [ ] Registro público desactivado; usuarios creados por un administrador.
-- [ ] Copias de PostgreSQL cifradas, fuera de la VM, y restauración probada.
+- [ ] Copias de PostgreSQL cifradas y fuera de la VM (la restauración la prueba el CI con `scripts/restore-check.sh`; ejecútala también contra tu copia real).
 - [ ] Claves de cifrado de credenciales guardadas aparte de las copias.
 - [ ] `NEXUSFLOW_METRICS_TOKEN` definido si se usa Prometheus.
 - [ ] Actualizaciones de seguridad de la VM y reconstrucción periódica de las imágenes.
