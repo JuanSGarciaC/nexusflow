@@ -40,6 +40,14 @@ demostración de `nexusflow seed-demo`, que son ficticios. Se regeneran con
 `CAPTURE_SCREENSHOTS=1 pnpm exec playwright test screenshots` (ver
 [`frontend/e2e/screenshots.spec.ts`](frontend/e2e/screenshots.spec.ts)).
 
+![Recorrido de la demo](docs/demo.gif)
+
+El recorrido (panel, editor, ejecución con el worker, reintentos, error clasificado,
+credenciales y auditoría) se regenera con `CAPTURE_DEMO=1 FRAMES_DIR=... pnpm exec playwright test demo-gif`
+([`demo-gif.spec.ts`](frontend/e2e/demo-gif.spec.ts)) y
+`uv run --with pillow scripts/make-demo-gif.py FRAMES_DIR docs/demo.gif`. Son fotogramas con
+rótulo, no un vídeo: pesa poco y GitHub lo reproduce en el propio README.
+
 | | |
 |---|---|
 | ![Panel de métricas](docs/screenshots/01-panel.png)<br>**Panel:** volumen, tasa de éxito, p50/p95 y últimos fallos, calculados en PostgreSQL | ![Programaciones cron](docs/screenshots/04-programaciones.png)<br>**Programaciones cron** con zona horaria, próximo y último disparo |
