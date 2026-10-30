@@ -13,6 +13,7 @@ from nexusflow.auth.dependencies import (
     RateLimiterDep,
     SessionDep,
     SettingsDep,
+    limit_writes,
     require_permission,
 )
 from nexusflow.auth.models import User
@@ -171,6 +172,7 @@ async def get_run(run_id: uuid.UUID, session: SessionDep, _: Reader) -> RunDetai
     "/runs/{run_id}/cancel",
     response_model=RunDetail,
     summary="Cancelar una ejecución",
+    dependencies=[Depends(limit_writes)],
     responses={409: {"description": "Ya terminó", **_PROBLEM}},
 )
 async def cancel_run(
@@ -189,6 +191,7 @@ async def cancel_run(
     "/runs/{run_id}/steps/{step_id}/resolve",
     response_model=RunDetail,
     summary="Resolver un paso en revisión manual",
+    dependencies=[Depends(limit_writes)],
     responses={409: {"description": "El paso no está en revisión", **_PROBLEM}},
 )
 async def resolve_step(

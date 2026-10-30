@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     run_create_rate_limit_per_user: int = Field(
         default=120, ge=1, description="Ejecuciones manuales por minuto y usuario"
     )
+    # Resto de escrituras de la API de gestión (flujos, credenciales, programaciones...).
+    write_rate_limit_per_user: int = Field(
+        default=120, ge=1, description="Escrituras por minuto y usuario"
+    )
+    # Ping y reenvío de webhooks: cada llamada provoca una petición HTTP saliente.
+    webhook_dispatch_rate_limit_per_user: int = Field(
+        default=10, ge=1, description="Pings y reenvíos de webhooks por minuto y usuario"
+    )
 
     # --- Motor de ejecución ---
     # Broker de Celery. Si no se indica, se usa redis_url.

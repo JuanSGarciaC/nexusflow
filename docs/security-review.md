@@ -62,17 +62,24 @@ comprueba**: una afirmación sin prueba automatizada no cuenta como control.
   | `POST /auth/refresh` | 60 / min | IP |
   | `POST /workflows/{id}/runs` | 120 / min (configurable) | usuario |
   | `POST /hooks/{id}` (entrada) | `rate_limit_per_minute` del webhook (1–6000) | webhook |
+  | Resto de escrituras (`POST/PUT/PATCH/DELETE`) de flujos, credenciales, programaciones, webhooks, usuarios y cancelar/resolver ejecuciones | 120 / min (`WRITE_RATE_LIMIT_PER_USER`) | usuario |
+  | `webhook-subscriptions/{id}/ping` y `webhook-deliveries/{id}/redeliver` | 10 / min (`WEBHOOK_DISPATCH_RATE_LIMIT_PER_USER`), además del anterior | usuario |
 
-  **Sin límite hoy (hueco conocido):** resto de escrituras y lecturas autenticadas. Los de
-  mayor riesgo, por orden: `webhook-subscriptions/{id}/ping` y `webhook-deliveries/{id}/redeliver`
-  (cada llamada provoca una petición HTTP saliente: amplificación), `POST /workflows/validate`
-  (trabajo de CPU), `PUT /credentials/{id}/secret` (cifrado) y los listados paginados.
-  Mitigación parcial: todos exigen autenticación y rol, y la salida HTTP tiene control de
-  destinos. No existe un endpoint de cambio de contraseña, así que el login es la única
-  superficie de fuerza bruta y sí está limitada. Propuesta: un límite por usuario
-  (p. ej. 120 escrituras/min) y uno más estricto en `ping`/`redeliver`; pendiente de
-  aprobar los valores. Limitación del mecanismo: la ventana fija permite hasta 2× el
-  límite en el borde entre ventanas.
+  **Decisiones.** Es una dependencia de router (`limit_writes`), no código repetido en 40
+  rutas: una ruta nueva queda protegida por defecto. Cuenta por usuario y no por IP (un
+  token robado no se libra cambiando de IP) y solo escrituras, porque las lecturas ya
+  están acotadas por paginación (`limit ≤ 100`). Las peticiones que acaban en 4xx también
+  cuentan, a propósito: un bucle que falla también consume recursos. Sin autenticación
+  responde 401 antes de contar. `ping` y `redeliver` tienen un límite propio más estricto
+  porque cada llamada provoca una petición HTTP saliente. La creación de ejecuciones
+  conserva su límite específico y no entra en el general, para que subir uno no quede
+  recortado por el otro.
+
+  **Limitaciones.** Siguen sin límite las lecturas (listados, analytics, auditoría); la
+  ventana fija permite hasta 2× el límite en el borde entre ventanas; los valores
+  (120 y 10) son una estimación razonable para un uso humano, no el resultado de una
+  medición de carga (eso llegará con las pruebas de k6). Los 429 de estas rutas no están
+  declarados en el contrato OpenAPI (el de la creación de ejecuciones sí).
 - **IP del cliente.** Cada salto solo confía en `X-Forwarded-For` si viene del salto
   anterior, con una IP fija (Caddy → nginx → API). Una cabecera falsificada se ignora
   (verificado contra uvicorn).
