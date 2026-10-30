@@ -241,6 +241,12 @@ jobs:
             -e MOCK_PARTNER_CRM_TOKEN="$MOCK_PARTNER_CRM_TOKEN" \
             -e MOCK_PARTNER_PAYMENTS_KEY="$MOCK_PARTNER_PAYMENTS_KEY" \
             api nexusflow seed-demo --runs 2
+      - name: Copia de PostgreSQL y restauración verificada
+        # El stack sigue vivo (el worker y beat escriben), por eso no se exige igualdad de
+        # filas: la copia nunca puede tener MÁS que el origen y debe restaurarse sin errores.
+        run: |
+          BACKUP_DIR="$RUNNER_TEMP/backups" scripts/backup.sh
+          scripts/restore-check.sh "$(ls "$RUNNER_TEMP"/backups/nexusflow-*.dump)"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
