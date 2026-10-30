@@ -44,6 +44,54 @@ La consulta de métricas por tipo de paso hacía `JOIN` con `step_runs` (para ob
 - **El barrido** usa índices parciales que solo contienen pasos no terminados: su coste
   depende de los pasos activos, no del historial, y escala bien.
 
+## Carga concurrente (k6)
+
+Prueba del sistema completo (API → Redis → worker de Celery → PostgreSQL) creando
+ejecuciones a ritmo constante. Guion y razonamiento en [loadtest/README.md](../loadtest/README.md).
+
+**Entorno de la medición (local, no producción):** Docker Desktop en Windows 11, una sola
+réplica de API (un proceso uvicorn), worker de Celery con `--concurrency=2`, PostgreSQL 16 y
+Redis 7 en contenedores, flujo de un único paso `transform`. Cada fila: 30 s de carga.
+
+| Ritmo objetivo | Ejecuciones | Creación p95 | Finalización p95 | Correctas |
+|---|---|---|---|---|
+| 20 / s | 600 | 23 ms | 61 ms | 100 % |
+| 40 / s | 1 201 | 32 ms | 63 ms | 100 % |
+| 80 / s | 1 717 (53 / s reales, 684 iteraciones descartadas) | 5,6 s | 3,2 s | 100 % |
+
+Lectura honesta de los resultados:
+
+- **Capacidad sostenida en esa máquina: entre 40 y ~53 ejecuciones/s.** A 80/s el sistema
+  se satura y lo hace por la **API** (la creación pasa de 32 ms a 5,6 s), no por el worker.
+  Un solo proceso de API es el cuello de botella más probable; escalarlo (más réplicas o
+  `--workers`) es el siguiente paso. **No lo he probado**, es una hipótesis razonable.
+- **Saturado no es roto:** incluso a 80/s no se perdió ninguna ejecución ni hubo errores.
+  Tras las 4 pruebas hay 3 718 ejecuciones en la base, exactamente las que k6 creó, todas
+  `succeeded`, sin ningún paso con más de un intento
+  ([`check-integrity.sh`](../loadtest/check-integrity.sh)). Es la evidencia empírica del
+  reclamo en PostgreSQL de [ADR-0007](adr/0007-motor-de-ejecucion.md). Matiz: la unicidad
+  `(run_id, step_id)` ya la impone una restricción de la base, así que esa comprobación
+  concreta es débil; la valiosa es la de intentos y la de ejecuciones terminadas.
+- **Lo que NO mide:** pasos HTTP reales (la latencia de un tercero domina), ejecuciones
+  largas, reintentos bajo carga, varios workers ni una base con mucho histórico. Tampoco son
+  números de producción: otra máquina dará otras cifras. Úsalas para comparar versiones
+  entre sí, no como promesa.
+- **Rate limiting:** la prueba sube el límite de creación (120/min por usuario) porque, con
+  el valor por defecto, lo correcto es que cortara la carga con 429. Ese comportamiento lo
+  cubren las pruebas de integración, no k6.
+
+**En CI** corre una versión corta (20 ejecuciones/s durante 20 s) con umbrales muy holgados
+(creación p95 < 500 ms, finalización p95 < 3 s, 100 % correctas) más la comprobación de
+integridad. Detecta regresiones graves, no una degradación del 20 %: un runner compartido es
+demasiado ruidoso para umbrales ajustados.
+
+## Cobertura de pruebas
+
+El umbral de **85 %** del backend (`fail_under = 85` en `pyproject.toml`) lo aplica
+`pytest --cov` en el CI: si baja, el job falla. Última medición completa en local, en la rama del PR de rate limiting (366
+pruebas, unitarias e integración contra PostgreSQL y Redis reales): **87,98 %**. El frontend
+no tiene umbral de cobertura configurado (Vitest corre sus pruebas, pero no hay un mínimo).
+
 ## Reproducir
 
 ```bash

@@ -268,6 +268,15 @@ jobs:
             frontend/playwright-report
             frontend/test-results
           retention-days: 7
+      - name: Carga con k6 sobre ejecuciones concurrentes
+        # Se sube el límite de creación (120/min por usuario); si no, cortaría la carga con 429.
+        run: |
+          NEXUSFLOW_RUN_CREATE_RATE_LIMIT_PER_USER=100000 docker compose --profile demo up -d --no-deps api
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/health/ready >/dev/null && break; sleep 2; done
+          docker run --rm --network container:"$(docker compose ps -q api)" \
+            -v "$PWD/loadtest:/loadtest:ro" -e NEXUSFLOW_DEMO_PASSWORD="$E2E_PASSWORD" \
+            -e RATE=20 -e DURATION=20s grafana/k6:2.3.0 run /loadtest/concurrent-runs.js
+          loadtest/check-integrity.sh
       - name: Logs del stack
         if: always()
         run: docker compose --profile demo logs --no-color
