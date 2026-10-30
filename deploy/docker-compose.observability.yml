@@ -3,7 +3,7 @@
 # (añade también -f deploy/docker-compose.prod.yml en producción).
 #
 # Decisiones:
-# - Prometheus NO publica puertos: solo Grafana lo consulta, dentro de la red.
+# - Prometheus y Alertmanager NO publican puertos: solo se hablan entre sí y con Grafana.
 # - Grafana escucha solo en 127.0.0.1:3001; para verlo desde fuera, túnel SSH o un proxy
 #   con TLS y autenticación (no lo expongas tal cual).
 # - Sin contraseña por defecto: GRAFANA_ADMIN_PASSWORD es obligatoria.
@@ -23,6 +23,19 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      alertmanager:
+        condition: service_started
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./deploy/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./deploy/observability/secrets/slack_webhook_url:/etc/alertmanager/secrets/slack_webhook_url:ro
+      - alertmanager-data:/alertmanager
     restart: unless-stopped
 
   grafana:
@@ -43,5 +56,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  alertmanager-data:
   prometheus-data:
   grafana-data:

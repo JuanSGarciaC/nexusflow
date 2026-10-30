@@ -1,6 +1,6 @@
-# Observabilidad de referencia: Prometheus, alertas y Grafana
+# Observabilidad de referencia: Prometheus, Alertmanager y Grafana
 
-Un dashboard y nueve alertas sobre las métricas que **ya expone la API** en `/metrics`
+Un dashboard, nueve alertas y su notificación a Slack sobre las métricas que **ya expone la API** en `/metrics`
 ([ADR-0010](../../docs/adr/0010-observabilidad.md)). No añade código a la aplicación.
 
 ## Puesta en marcha
