@@ -284,6 +284,35 @@ jobs:
         if: always()
         run: docker compose --profile demo down -v
 
+  observabilidad:
+    name: Observabilidad (alertas y configuración de Prometheus)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Reglas de alerta (sintaxis y tests unitarios con promtool)
+        run: |
+          for cmd in "check rules /o/alerts.yml" "test rules /o/alerts_test.yml"; do
+            docker run --rm --entrypoint promtool -v "$PWD/deploy/observability:/o:ro" \
+              prom/prometheus:v3.15.1 $cmd
+          done
+      - name: Configuración de Prometheus
+        run: |
+          mkdir -p "$RUNNER_TEMP/secrets" && printf x > "$RUNNER_TEMP/secrets/metrics_token"
+          docker run --rm --entrypoint promtool \
+            -v "$PWD/deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+            -v "$PWD/deploy/observability/alerts.yml:/etc/prometheus/alerts.yml:ro" \
+            -v "$RUNNER_TEMP/secrets:/etc/prometheus/secrets:ro" \
+            prom/prometheus:v3.15.1 check config /etc/prometheus/prometheus.yml
+      - name: Validar el override de compose
+        run: |
+          cp .env.example .env
+          GRAFANA_ADMIN_PASSWORD=x POSTGRES_PASSWORD=x REDIS_PASSWORD=x \
+            NEXUSFLOW_SECRET_KEY=x NEXUSFLOW_CREDENTIALS_ENCRYPTION_KEYS=x \
+            docker compose -f docker-compose.yml -f deploy/docker-compose.observability.yml config --quiet
+
   trivy:
     name: Imágenes (Trivy HIGH/CRITICAL)
     runs-on: ubuntu-24.04

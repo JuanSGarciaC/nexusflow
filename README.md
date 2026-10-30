@@ -45,7 +45,7 @@ demostración de `nexusflow seed-demo`, que son ficticios. Se regeneran con
 | ![Panel de métricas](docs/screenshots/01-panel.png)<br>**Panel:** volumen, tasa de éxito, p50/p95 y últimos fallos, calculados en PostgreSQL | ![Programaciones cron](docs/screenshots/04-programaciones.png)<br>**Programaciones cron** con zona horaria, próximo y último disparo |
 | ![Cobro VIP con reintentos](docs/screenshots/06-detalle-ejecucion.png)<br>**Reintentos:** la pasarela simulada falla dos veces con 503 y el motor reintenta con la misma `Idempotency-Key` | ![Ejecución fallida](docs/screenshots/07-ejecucion-fallida.png)<br>**Error clasificado:** un 404 no se reintenta y se muestra el paso que falló |
 | ![Editor de flujos](docs/screenshots/03-editor-flujo.png)<br>**Editor** con validación del grafo y versiones inmutables | ![Credenciales](docs/screenshots/08-credenciales.png)<br>**Credenciales** de solo escritura: solo se ven metadatos y una pista |
-| ![Auditoría](docs/screenshots/09-auditoria.png)<br>**Auditoría** de solo inserción: la ejecución lanzada por el cron aparece sin actor humano | |
+| ![Auditoría](docs/screenshots/09-auditoria.png)<br>**Auditoría** de solo inserción: la ejecución lanzada por el cron aparece sin actor humano | ![Dashboard de Grafana](docs/screenshots/10-grafana.png)<br>**Observabilidad:** dashboard de Grafana sobre `/metrics` durante una prueba de carga con k6 (≈12 ejecuciones/s). Ver [deploy/observability](deploy/observability/README.md) |
 
 ## Qué demuestra este proyecto
 
