@@ -11,6 +11,8 @@ echo "NEXUSFLOW_METRICS_TOKEN=$(openssl rand -hex 24)" >> .env
 echo "GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)"   >> .env     # obligatoria, sin valor por defecto
 mkdir -p deploy/observability/secrets && chmod 700 deploy/observability/secrets
 grep ^NEXUSFLOW_METRICS_TOKEN= .env | cut -d= -f2- | tr -d '\n' > deploy/observability/secrets/metrics_token
+# URL del webhook entrante de Slack (https://api.slack.com/messaging/webhooks); no se versiona
+printf '%s' 'https://hooks.slack.com/services/XXX/YYY/ZZZ' > deploy/observability/secrets/slack_webhook_url
 
 # 2. Levantar el stack con el override de observabilidad
 docker compose -f docker-compose.yml -f deploy/docker-compose.observability.yml up -d
@@ -19,14 +21,15 @@ docker compose -f docker-compose.yml -f deploy/docker-compose.observability.yml 
 
 Grafana queda en `http://127.0.0.1:3001` (usuario `admin`). **Solo escucha en localhost**:
 desde fuera, usa un túnel SSH (`ssh -L 3001:127.0.0.1:3001 servidor`) o un proxy con TLS.
-Prometheus no publica ningún puerto. El dashboard y el datasource se aprovisionan solos y el
+Prometheus y Alertmanager no publican ningún puerto. El dashboard y el datasource se aprovisionan solos y el
 dashboard es de solo lectura en la interfaz (se edita en `grafana/dashboards/nexusflow.json`).
 
 ## Qué contiene
 
 | Archivo | Para qué |
 |---|---|
-| `prometheus.yml` | Scrape de la API cada 15 s con el token y carga de las reglas |
+| `prometheus.yml` | Scrape de la API cada 15 s con el token, carga de las reglas y envío a Alertmanager |
+| `alertmanager.yml` | Agrupa, inhibe y notifica a Slack (canal `#nexusflow-alertas`; cámbialo en el archivo) |
 | `alerts.yml` | 9 reglas de alerta (tabla abajo) |
 | `alerts_test.yml` | Tests unitarios de las reglas con `promtool` |
 | `grafana/dashboards/nexusflow.json` | Dashboard «NexusFlow · visión general» (13 paneles) |
@@ -56,14 +59,20 @@ Los umbrales son una estimación para una instalación pequeña: **ajústalos a 
   las 18 consultas del dashboard se ejecutan contra Prometheus y devuelven series (las de
   3xx/4xx/5xx salen vacías hasta que ocurre uno, y los paneles lo muestran como 0), y una
   consulta **a través de Grafana** devuelve datos.
+- **Alertmanager de extremo a extremo** con un receptor Slack falso: se paró la API y la
+  alerta `NexusFlowApiCaida` llegó con su título, resumen y descripción; el primer intento de
+  entrega falló (el receptor aún no existía) y Alertmanager **reintentó solo**; al volver la
+  API llegó el aviso de **resuelta**. `amtool` valida la configuración y el enrutado en el CI.
 - Un test del backend (`test_observability_assets.py`) falla en el CI si el código renombra
   una métrica o un estado que el dashboard o las alertas usan.
 
 ## Límites (léelos antes de fiarte de esto)
 
-- **Sin Alertmanager**: las alertas se ven en Prometheus y Grafana, pero **nadie recibe un
-  aviso**. Para correo/Slack/PagerDuty añade un Alertmanager (hay un bloque comentado en
-  `prometheus.yml`). Es lo más importante que falta.
+- **Contra Slack real no se ha probado**: la entrega se verificó contra un receptor falso con
+  el mismo formato de petición. Falta confirmarlo con tu workspace (un `curl` al webhook basta).
+- **Un solo canal y sin escalado**: todo va al mismo canal de Slack; no hay rotación de guardia
+  ni escalado si nadie responde (PagerDuty u Opsgenie lo cubrirían).
+- **La inhibición solo cubre «API caída»**: si cae Redis o el worker, no hay supresión.
 - **Worker y beat no exportan métricas**: su caída se detecta de forma indirecta
   (`NexusFlowColaSinVaciar`). Una alerta directa pediría un exporter de Celery.
 - **Sin métricas de Redis ni PostgreSQL** (CPU, conexiones, disco). Añade
