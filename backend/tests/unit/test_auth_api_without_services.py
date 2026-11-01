@@ -58,6 +58,28 @@ def test_openapi_documents_bearer_security(client: TestClient) -> None:
     assert "/api/v1/users/{user_id}" in schema["paths"]
 
 
+def test_openapi_declares_429_on_every_write(client: TestClient) -> None:
+    """Toda escritura con límite de uso lo declara: los clientes generados pueden tipar el 429."""
+    # Sin límite a propósito: solo revoca la sesión de quien llama (ver security-review.md).
+    unlimited = {("POST", "/api/v1/auth/logout")}
+    paths = client.get("/openapi.json").json()["paths"]
+    writes = [
+        (method.upper(), path, "429" in op["responses"])
+        for path, item in paths.items()
+        for method, op in item.items()
+        if method in ("post", "put", "patch", "delete") and (method.upper(), path) not in unlimited
+    ]
+    assert len(writes) >= 30  # que la prueba no pase en vacío si cambia la ruta del contrato
+    assert [w for w in writes if not w[2]] == []
+    # El límite general no cuenta lecturas: documentar ahí su 429 sería falso.
+    read_429 = [
+        path
+        for path, item in paths.items()
+        if "Límite de escrituras" in str(item.get("get", {}).get("responses", {}).get("429", ""))
+    ]
+    assert read_429 == []
+
+
 @pytest.mark.parametrize(
     ("host", "expected"),
     [("127.0.0.1", "127.0.0.1"), ("::1", "::1"), ("testclient", None), ("", None)],
