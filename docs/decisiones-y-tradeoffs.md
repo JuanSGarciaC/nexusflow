@@ -83,7 +83,6 @@ Lo que sigue lo dejo por escrito porque conocerlo es parte de defender el diseñ
 | RPO = intervalo entre copias (24 h con copia diaria); sin PITR | Se puede perder un día | WAL archiving (pgBackRest/wal-g) o base gestionada |
 | La carga cubre pasos locales y un paso HTTP con reintentos contra un servicio simulado | No mide terceros reales, ejecuciones largas, caídas de worker ni histórico grande | Escenarios con kill del worker y base con histórico |
 | La cobertura del frontend en Vitest es modesta (≈66 %; auditoría y credenciales al 0 %, cubiertas solo por E2E) y el umbral es solo un suelo | La interfaz puede tener regresiones en esas pantallas que Vitest no ve | Pruebas de componentes para auditoría y credenciales y subir el suelo |
-| Los 429 de las escrituras no están en el contrato OpenAPI | Los clientes generados no los tipan | Declararlos y regenerar los tipos |
 | Sin captura/GIF de la demo | Menos inmediato para quien solo lea el README | Grabarlo (ver [README](../README.md#capturas)) |
 
 ## Lo que NO afirmo
