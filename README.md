@@ -136,6 +136,8 @@ curl http://127.0.0.1:8000/health/ready
 docker compose exec api nexusflow create-admin --email admin@example.com
 
 # 5. (Opcional) Datos de demostración: 4 usuarios (uno por rol), flujos y ejecuciones
+#    Con el perfil demo, pasa también los tokens del socio simulado (ver docs/demo.md);
+#    sin ellos el seed omite el flujo de cobro con reintentos.
 docker compose exec -e NEXUSFLOW_DEMO_PASSWORD="elige-una-clave-larga" api nexusflow seed-demo
 
 # 6. Abrir el panel
@@ -582,6 +584,7 @@ Credenciales (Fase 5):
 | [docs/workflow-dsl.md](docs/workflow-dsl.md) | Formato de los flujos: pasos, plantillas, condiciones, incidencias |
 | [docs/api.md](docs/api.md) | Convenciones de la API: autenticación, errores, paginación, idempotencia, firma de webhooks (ejemplos en Python y Node probados) |
 | [docs/deployment.md](docs/deployment.md) | Despliegue en una VM con TLS, copias de seguridad, rotación de secretos, observabilidad y escalado |
+| [docs/demo.md](docs/demo.md) | Guion de demostración de 3–4 minutos con datos ficticios: reintentos ante 503, idempotencia, webhook firmado y reenviado, permisos y auditoría; cada paso comprobado contra el stack real |
 | [docs/security-review.md](docs/security-review.md) | Revisión frente al OWASP API Top 10 (2023): control y prueba que lo respalda en cada punto, y limitaciones aceptadas |
 | [docs/performance.md](docs/performance.md) | Planes y tiempos de las consultas críticas con 50 000 ejecuciones, la optimización aplicada y cuándo dejará de bastar |
 | [docs/adr/](docs/adr/) | 11 decisiones de arquitectura con alternativas descartadas |
