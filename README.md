@@ -8,6 +8,14 @@ Plataforma web de **automatización de procesos empresariales**. Permite definir
 trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y ejecutarlos
 en segundo plano con reintentos, timeouts e idempotencia.
 
+![Demo de NexusFlow: reintentos ante 503, idempotencia, webhook firmado y deduplicado, permisos y auditoría](docs/demo/nexusflow-demo.gif)
+
+*Demo de 50 s grabada contra el stack real con datos ficticios: la pasarela responde 503 dos
+veces y el motor reintenta con la misma `Idempotency-Key`; repetir con la misma clave no crea
+otra ejecución; un webhook con firma incorrecta da 401 y el reenvío del mismo evento se
+deduplica; un viewer no puede ejecutar; credenciales sin secreto a la vista y auditoría.
+Guion completo para presentarla en [docs/demo.md](docs/demo.md).*
+
 > **Estado del proyecto:** se está construyendo por fases verificables.
 > **Fases 1 a 10 completadas y revisadas:** fundaciones, autenticación y RBAC, definición
 > de flujos, motor de ejecución, credenciales cifradas, webhooks firmados, métricas y
@@ -20,7 +28,7 @@ en segundo plano con reintentos, timeouts e idempotencia.
 
 ## Contenido
 
-- [Capturas](#capturas)
+- [Capturas](#capturas) · [guion de la demo](docs/demo.md)
 - [Qué demuestra este proyecto](#qué-demuestra-este-proyecto)
 - [Arquitectura](#arquitectura)
 - [Inicio rápido con Docker](#inicio-rápido-con-docker)
@@ -58,7 +66,7 @@ demostración de `nexusflow seed-demo`, que son ficticios. Se regeneran con
 | Sistemas distribuidos | Celery con entrega *at-least-once*, reclamo atómico en PostgreSQL, lease y barrido de recuperación, pruebas con un worker real |
 | Operación | Logs JSON con `request_id`, health checks *liveness* / *readiness*, Docker no-root |
 | Frontend | React 19 + TypeScript estricto + Mantine, **cliente tipado generado desde OpenAPI** (el CI falla si el contrato se desincroniza), sesión en memoria + cookie HttpOnly con renovación serializada, CSP sin scripts inline |
-| Calidad | Ruff, mypy `strict`, ESLint; 362 pruebas de backend (88 % de cobertura con ramas, mínimo 85 % en CI) contra PostgreSQL y Redis reales, 27 de frontend y 8 E2E; CI con auditoría de dependencias y escaneo de secretos |
+| Calidad | Ruff, mypy `strict`, ESLint; 373 pruebas de backend (88 % de cobertura con ramas, mínimo 85 % en CI) contra PostgreSQL y Redis reales, 35 de frontend y 8 E2E; CI con auditoría de dependencias y escaneo de secretos |
 
 ## Arquitectura
 
@@ -136,6 +144,8 @@ curl http://127.0.0.1:8000/health/ready
 docker compose exec api nexusflow create-admin --email admin@example.com
 
 # 5. (Opcional) Datos de demostración: 4 usuarios (uno por rol), flujos y ejecuciones
+#    Con el perfil demo, pasa también los tokens del socio simulado (ver docs/demo.md);
+#    sin ellos el seed omite el flujo de cobro con reintentos.
 docker compose exec -e NEXUSFLOW_DEMO_PASSWORD="elige-una-clave-larga" api nexusflow seed-demo
 
 # 6. Abrir el panel
@@ -294,7 +304,7 @@ uv run pytest
 | `integration/test_cli.py` | `create-admin`: creación auditada, duplicados y contraseñas débiles |
 | `unit/test_workflow_dsl.py` | Estructura del DSL, cabeceras peligrosas, efectos secundarios por método, ciclos, pasos inalcanzables, referencias no garantizadas (dominadores), plantillas y condiciones |
 | `unit/test_engine_units.py` | Anti-SSRF (IPs privadas, metadatos cloud, IPv4 en IPv6, `localhost`), clasificación de códigos, `Retry-After`, backoff con jitter acotado, máquina de estados, **tabla de decisión ante fallos**, validación de la entrada |
-| `integration/test_engine.py` | Contra una API externa real local: camino feliz, reintentos con historial, `Retry-After`, **timeout de un POST → revisión sin reintento**, PUT reintentado con la misma `Idempotency-Key`, **mensaje duplicado → una sola llamada**, SSRF, límite de respuesta, recuperación de workers caídos, mensajes perdidos, plazos, cancelación, esperas, resolución manual, creación idempotente concurrente |
+| `integration/test_engine.py` | Contra una API externa real local: camino feliz, reintentos con historial, `Retry-After`, **timeout de un POST → revisión sin reintento**, PUT reintentado con la misma `Idempotency-Key`, **mensaje duplicado → una sola llamada**, **resultado tardío de un worker dado por muerto descartado aunque el reintento siga en marcha**, SSRF, límite de respuesta, recuperación de workers caídos, mensajes perdidos, plazos, cancelación, esperas, resolución manual, creación idempotente concurrente |
 | `integration/test_runs_api.py` | Permisos, `202`/`200` por idempotencia, `409` con otra entrada, validación de la entrada, cancelación |
 | `integration/test_celery_worker.py` | **API → Redis → worker de Celery real → PostgreSQL → API externa**, con paso `delay` |
 | `unit/test_credentials_units.py` | Cifrado con vinculación a la fila, manipulación detectada, rotación de claves, adaptadores, hosts válidos, redacción |
@@ -302,6 +312,7 @@ uv run pytest
 | `unit/test_webhook_signing.py` | Firma: manipulación de un byte, otro secreto, ventana de tiempo, **timestamp reescrito**, cabeceras mal formadas, rotación con dos firmas |
 | `integration/test_schedules.py` | API y permisos (solo editor/admin), validación de cron y zona horaria, **disparo con la clave de idempotencia (la caída entre crear la ejecución y avanzar no duplica)**, **5 barridos simultáneos → una sola ejecución**, disparos perdidos omitidos, errores anotados sin detener la programación; más un disparo real por la tarea de barrido con un worker Celery |
 | `unit/test_cron.py` | Expresiones, zonas horarias, **salto de hora de primavera y repetición de otoño** (Europe/Madrid), expresiones inválidas |
+| `integration/test_case_study_webhook_flow.py` | **Caso de estudio de punta a punta** ([docs](docs/caso-de-estudio-webhook.md)): firma rechazada → webhook firmado → 503 → reintento → éxito → reentrega del mismo evento sin nueva ejecución ni llamada → un solo `run.created` en auditoría. Validada con dos mutaciones |
 | `integration/test_webhooks.py` | Entrada: secreto mostrado una vez, entrada filtrada, **deduplicación con y sin id de evento**, firmas rechazadas (ausente, otra, caducada, cuerpo cambiado), 404 indistinguible, rotación, límite de uso. Salida: **evento firmado verificado por el receptor**, filtros, **el outbox se deshace con el rollback**, reintentos con el mismo `event_id` → dead-letter → reenvío, anti-SSRF, recuperación por barrido |
 | `integration/test_observability.py` | Métricas que reflejan ejecuciones reales (éxitos, fallos, reintentos, clases de error, flujos con más fallos); **percentiles exactos** con duraciones conocidas; ventana y filtro por flujo; canceladas fuera de la tasa de éxito; `/metrics` con token, etiquetas por plantilla de ruta (sin ids); auditoría con filtros, **paginación por cursor sin solapes** y prefijo que no actúa como comodín |
 | `integration/test_workflows_api.py` | Ciclo de vida borrador → publicación → nueva versión, concurrencia optimista (4 guardados simultáneos: 1 gana), **inmutabilidad en la base de datos**, archivo, búsqueda literal, límite de tamaño (413) |
@@ -309,6 +320,8 @@ uv run pytest
 | `integration/test_demo_seed.py` | Seed idempotente con los cuatro roles, credenciales cifradas solo con tokens de `mock-partner`, rechazo de contraseña débil sin dejar datos a medias |
 | `frontend/src/api/session.test.ts` | **Cinco 401 simultáneos → una sola renovación** (dos con el mismo refresh token cerrarían la sesión por detección de robo), reintento con el token nuevo, sin reintentos en `/auth/`, sin bucles |
 | `frontend/src/test/app.test.tsx` | App completa con rutas reales: login fallido con el error RFC 9457 y su referencia, vuelta a la página pedida, sesión recuperada por cookie, menú y páginas según permisos, publicación bloqueada con incidencias, **conflicto 409 al guardar**, resolución manual solo para quien puede ejecutar |
+| `frontend/src/test/credentials.test.tsx` | **El secreto no aparece en la página tras guardarlo** ni al reabrir el formulario, campo de tipo contraseña, **cambiar de tipo descarta el secreto escrito** (no viaja con el tipo nuevo), error del servidor sin exponer el secreto, sin acceso para un viewer |
+| `frontend/src/test/audit.test.tsx` | Paginación por cursor (`before_id`) sin duplicados, filtro por prefijo con espera (no una consulta por tecla), error con su referencia, sin acceso sin `audit:read`. Ambas suites validadas con mutaciones |
 
 En CI se define `NEXUSFLOW_REQUIRE_INTEGRATION=1`. Si faltan los servicios, las pruebas
 de integración **fallan** en lugar de omitirse en silencio.
@@ -582,9 +595,12 @@ Credenciales (Fase 5):
 | [docs/workflow-dsl.md](docs/workflow-dsl.md) | Formato de los flujos: pasos, plantillas, condiciones, incidencias |
 | [docs/api.md](docs/api.md) | Convenciones de la API: autenticación, errores, paginación, idempotencia, firma de webhooks (ejemplos en Python y Node probados) |
 | [docs/deployment.md](docs/deployment.md) | Despliegue en una VM con TLS, copias de seguridad, rotación de secretos, observabilidad y escalado |
+| [docs/demo.md](docs/demo.md) | Guion de demostración de 3–4 minutos con datos ficticios: reintentos ante 503, idempotencia, webhook firmado y reenviado, permisos y auditoría; cada paso comprobado contra el stack real |
 | [docs/security-review.md](docs/security-review.md) | Revisión frente al OWASP API Top 10 (2023): control y prueba que lo respalda en cada punto, y limitaciones aceptadas |
+| [docs/plan-de-pruebas-riesgos.md](docs/plan-de-pruebas-riesgos.md) | Riesgos de fiabilidad (duplicar, perder o reintentar mal un efecto externo): control, prueba que falla si se rompe, mutaciones y huecos conocidos |
 | [docs/performance.md](docs/performance.md) | Planes y tiempos de las consultas críticas con 50 000 ejecuciones, la optimización aplicada y cuándo dejará de bastar |
 | [docs/adr/](docs/adr/) | 11 decisiones de arquitectura con alternativas descartadas |
+| [docs/caso-de-estudio-webhook.md](docs/caso-de-estudio-webhook.md) | Un pedido por webhook de punta a punta: firma, 503, reintento, reentrega sin duplicar y auditoría, con su diagrama de secuencia, límites de confianza y la prueba que lo demuestra |
 | [docs/decisiones-y-tradeoffs.md](docs/decisiones-y-tradeoffs.md) | Las decisiones más preguntadas con su coste y cuándo se revertirían, preguntas de entrevista y deuda conocida |
 | [SECURITY.md](SECURITY.md) | Cómo reportar una vulnerabilidad |
 | `/docs` (Swagger) y [backend/openapi.json](backend/openapi.json) | Referencia completa de los endpoints |

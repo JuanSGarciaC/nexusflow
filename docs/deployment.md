@@ -261,5 +261,5 @@ Política, calendario y respuesta ante filtraciones: [key-rotation.md](key-rotat
 |---|---|
 | Cola de pasos creciendo | `docker compose up -d --scale worker=4` (el reclamo en PostgreSQL permite N workers) |
 | CPU de la API alta | Varias réplicas de `api` detrás de nginx (`upstream` con varios `server`) |
-| Varias máquinas | PostgreSQL y Redis gestionados (RDS / Cloud SQL, ElastiCache / Memorystore); la misma imagen en un orquestador (ECS, Cloud Run, Kubernetes). `beat` sigue siendo **una sola** instancia |
+| Varias máquinas | PostgreSQL y Redis gestionados (RDS / Cloud SQL, ElastiCache / Memorystore); la misma imagen en un orquestador (ECS, Cloud Run, Kubernetes). `beat` sigue siendo **una sola** instancia. **Relojes sincronizados (NTP)** en todos los hosts: leases, plazos y reintentos se comparan con el reloj de cada proceso (ver [plan de pruebas](plan-de-pruebas-riesgos.md#huecos-conocidos)) |
 | Millones de ejecuciones | Particionar `workflow_runs` y `step_attempts` por mes; agregados precalculados para las métricas (ADR-0010) |
