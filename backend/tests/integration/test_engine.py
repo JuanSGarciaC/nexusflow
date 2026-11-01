@@ -384,6 +384,52 @@ async def test_result_of_cancelled_run_is_discarded(h: Harness, partner_url: str
     assert "b" not in await h.steps(run_id)
 
 
+@pytest.mark.parametrize("late", ["success", "failure"])
+async def test_late_result_of_worker_whose_lease_expired_is_discarded(
+    h: Harness, partner_url: str, late: str
+) -> None:
+    from nexusflow.engine.executors import StepError, StepSuccess
+    from nexusflow.engine.http_client import FailureKind
+
+    wid = await h.publish(single(http_step("call", f"{partner_url}/customers/x", attempts=3)))
+    run_id = await h.start(wid)
+    [item] = h.dispatcher.drain()
+    # El worker A reclama el intento 1 y se queda colgado más allá de su lease.
+    claim_a = await h.engine._claim(item.step_run_id)
+    assert claim_a is not None
+    await h.sql("UPDATE step_runs SET lease_expires_at = now() - interval '1 second'")
+    assert (await h.engine.sweep()).recovered == 1
+    # El worker B reclama el reintento (intento 2) y todavía está trabajando.
+    [retry] = h.dispatcher.drain()
+    await asyncio.sleep(retry.countdown or 0)
+    claim_b = await h.engine._claim(retry.step_run_id)
+    assert claim_b is not None
+    assert claim_b.attempt == 2
+
+    # A despierta y entrega su resultado mientras B sigue en marcha: se descarta.
+    if late == "success":
+        label = await h.engine._record_success(claim_a, StepSuccess({"from": "A"}, None))
+    else:
+        label = await h.engine._record_failure(
+            claim_a, StepError(FailureKind.PERMANENT, "http_400", "tarde", 400)
+        )
+    assert label == "stale"
+    assert (await h.steps(run_id))["call"].status == StepStatus.RUNNING
+    assert h.dispatcher.drain() == []  # el resultado tardío no encola nada
+
+    # B termina con normalidad y su resultado es el que cuenta.
+    assert await h.engine._record_success(claim_b, StepSuccess({"from": "B"}, None)) == "succeeded"
+    assert (await h.run(run_id)).status == RunStatus.SUCCEEDED
+    step = (await h.steps(run_id))["call"]
+    assert step.output == {"from": "B"}
+    # El historial conserva lo que registró el barrido; el resultado tardío no lo reescribe.
+    attempts = await h.attempts(step.id)
+    assert [(a.outcome, a.error_class) for a in attempts] == [
+        ("abandoned", "worker_lost"),
+        ("succeeded", None),
+    ]
+
+
 # ------------------------------------------------------------------ esperas (delay)
 
 

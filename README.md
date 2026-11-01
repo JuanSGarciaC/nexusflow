@@ -294,7 +294,7 @@ uv run pytest
 | `integration/test_cli.py` | `create-admin`: creación auditada, duplicados y contraseñas débiles |
 | `unit/test_workflow_dsl.py` | Estructura del DSL, cabeceras peligrosas, efectos secundarios por método, ciclos, pasos inalcanzables, referencias no garantizadas (dominadores), plantillas y condiciones |
 | `unit/test_engine_units.py` | Anti-SSRF (IPs privadas, metadatos cloud, IPv4 en IPv6, `localhost`), clasificación de códigos, `Retry-After`, backoff con jitter acotado, máquina de estados, **tabla de decisión ante fallos**, validación de la entrada |
-| `integration/test_engine.py` | Contra una API externa real local: camino feliz, reintentos con historial, `Retry-After`, **timeout de un POST → revisión sin reintento**, PUT reintentado con la misma `Idempotency-Key`, **mensaje duplicado → una sola llamada**, SSRF, límite de respuesta, recuperación de workers caídos, mensajes perdidos, plazos, cancelación, esperas, resolución manual, creación idempotente concurrente |
+| `integration/test_engine.py` | Contra una API externa real local: camino feliz, reintentos con historial, `Retry-After`, **timeout de un POST → revisión sin reintento**, PUT reintentado con la misma `Idempotency-Key`, **mensaje duplicado → una sola llamada**, **resultado tardío de un worker dado por muerto descartado aunque el reintento siga en marcha**, SSRF, límite de respuesta, recuperación de workers caídos, mensajes perdidos, plazos, cancelación, esperas, resolución manual, creación idempotente concurrente |
 | `integration/test_runs_api.py` | Permisos, `202`/`200` por idempotencia, `409` con otra entrada, validación de la entrada, cancelación |
 | `integration/test_celery_worker.py` | **API → Redis → worker de Celery real → PostgreSQL → API externa**, con paso `delay` |
 | `unit/test_credentials_units.py` | Cifrado con vinculación a la fila, manipulación detectada, rotación de claves, adaptadores, hosts válidos, redacción |
@@ -584,6 +584,7 @@ Credenciales (Fase 5):
 | [docs/api.md](docs/api.md) | Convenciones de la API: autenticación, errores, paginación, idempotencia, firma de webhooks (ejemplos en Python y Node probados) |
 | [docs/deployment.md](docs/deployment.md) | Despliegue en una VM con TLS, copias de seguridad, rotación de secretos, observabilidad y escalado |
 | [docs/security-review.md](docs/security-review.md) | Revisión frente al OWASP API Top 10 (2023): control y prueba que lo respalda en cada punto, y limitaciones aceptadas |
+| [docs/plan-de-pruebas-riesgos.md](docs/plan-de-pruebas-riesgos.md) | Riesgos de fiabilidad (duplicar, perder o reintentar mal un efecto externo): control, prueba que falla si se rompe, mutaciones y huecos conocidos |
 | [docs/performance.md](docs/performance.md) | Planes y tiempos de las consultas críticas con 50 000 ejecuciones, la optimización aplicada y cuándo dejará de bastar |
 | [docs/adr/](docs/adr/) | 11 decisiones de arquitectura con alternativas descartadas |
 | [docs/caso-de-estudio-webhook.md](docs/caso-de-estudio-webhook.md) | Un pedido por webhook de punta a punta: firma, 503, reintento, reentrega sin duplicar y auditoría, con su diagrama de secuencia, límites de confianza y la prueba que lo demuestra |
