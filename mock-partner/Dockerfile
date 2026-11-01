@@ -1,5 +1,5 @@
 # API externa simulada (solo para demos y CI). No forma parte del producto.
-FROM python:3.13-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 COPY requirements.txt ./
