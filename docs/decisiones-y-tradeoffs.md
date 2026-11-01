@@ -84,7 +84,7 @@ Lo que sigue lo dejo por escrito porque conocerlo es parte de defender el diseñ
 | La carga cubre pasos locales y un paso HTTP con reintentos contra un servicio simulado | No mide terceros reales, ejecuciones largas, caídas de worker ni histórico grande | Escenarios con kill del worker y base con histórico |
 | La cobertura del frontend en Vitest es moderada (≈74 %); las pantallas de ejecuciones y usuarios siguen en ≈55 % | La interfaz puede tener regresiones en esas pantallas que Vitest no ve | Pruebas de componentes para ejecuciones y usuarios y subir el suelo |
 | Los 429 de las escrituras no están en el contrato OpenAPI | Los clientes generados no los tipan | Declararlos y regenerar los tipos |
-| Sin captura/GIF de la demo | Menos inmediato para quien solo lea el README | Grabarlo (ver [README](../README.md#capturas)) |
+| La demo del README es un GIF sin voz (50 s) | Explica el qué, no el porqué de cada decisión | Vídeo narrado de 3–4 min siguiendo el [guion](demo.md) |
 
 ## Lo que NO afirmo
 

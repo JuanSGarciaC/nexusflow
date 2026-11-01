@@ -8,6 +8,14 @@ Plataforma web de **automatización de procesos empresariales**. Permite definir
 trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y ejecutarlos
 en segundo plano con reintentos, timeouts e idempotencia.
 
+![Demo de NexusFlow: reintentos ante 503, idempotencia, webhook firmado y deduplicado, permisos y auditoría](docs/demo/nexusflow-demo.gif)
+
+*Demo de 50 s grabada contra el stack real con datos ficticios: la pasarela responde 503 dos
+veces y el motor reintenta con la misma `Idempotency-Key`; repetir con la misma clave no crea
+otra ejecución; un webhook con firma incorrecta da 401 y el reenvío del mismo evento se
+deduplica; un viewer no puede ejecutar; credenciales sin secreto a la vista y auditoría.
+Guion completo para presentarla en [docs/demo.md](docs/demo.md).*
+
 > **Estado del proyecto:** se está construyendo por fases verificables.
 > **Fases 1 a 10 completadas y revisadas:** fundaciones, autenticación y RBAC, definición
 > de flujos, motor de ejecución, credenciales cifradas, webhooks firmados, métricas y
@@ -20,7 +28,7 @@ en segundo plano con reintentos, timeouts e idempotencia.
 
 ## Contenido
 
-- [Capturas](#capturas)
+- [Capturas](#capturas) · [guion de la demo](docs/demo.md)
 - [Qué demuestra este proyecto](#qué-demuestra-este-proyecto)
 - [Arquitectura](#arquitectura)
 - [Inicio rápido con Docker](#inicio-rápido-con-docker)
@@ -136,6 +144,8 @@ curl http://127.0.0.1:8000/health/ready
 docker compose exec api nexusflow create-admin --email admin@example.com
 
 # 5. (Opcional) Datos de demostración: 4 usuarios (uno por rol), flujos y ejecuciones
+#    Con el perfil demo, pasa también los tokens del socio simulado (ver docs/demo.md);
+#    sin ellos el seed omite el flujo de cobro con reintentos.
 docker compose exec -e NEXUSFLOW_DEMO_PASSWORD="elige-una-clave-larga" api nexusflow seed-demo
 
 # 6. Abrir el panel
@@ -585,6 +595,7 @@ Credenciales (Fase 5):
 | [docs/workflow-dsl.md](docs/workflow-dsl.md) | Formato de los flujos: pasos, plantillas, condiciones, incidencias |
 | [docs/api.md](docs/api.md) | Convenciones de la API: autenticación, errores, paginación, idempotencia, firma de webhooks (ejemplos en Python y Node probados) |
 | [docs/deployment.md](docs/deployment.md) | Despliegue en una VM con TLS, copias de seguridad, rotación de secretos, observabilidad y escalado |
+| [docs/demo.md](docs/demo.md) | Guion de demostración de 3–4 minutos con datos ficticios: reintentos ante 503, idempotencia, webhook firmado y reenviado, permisos y auditoría; cada paso comprobado contra el stack real |
 | [docs/security-review.md](docs/security-review.md) | Revisión frente al OWASP API Top 10 (2023): control y prueba que lo respalda en cada punto, y limitaciones aceptadas |
 | [docs/plan-de-pruebas-riesgos.md](docs/plan-de-pruebas-riesgos.md) | Riesgos de fiabilidad (duplicar, perder o reintentar mal un efecto externo): control, prueba que falla si se rompe, mutaciones y huecos conocidos |
 | [docs/performance.md](docs/performance.md) | Planes y tiempos de las consultas críticas con 50 000 ejecuciones, la optimización aplicada y cuándo dejará de bastar |
