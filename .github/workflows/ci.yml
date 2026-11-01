@@ -163,6 +163,15 @@ jobs:
           done
           echo "La API no quedó lista a tiempo" >&2
           exit 1
+      - name: El worker responde a su healthcheck (celery ping)
+        run: |
+          for i in $(seq 1 45); do
+            status="$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q worker)")"
+            if [ "$status" = "healthy" ]; then echo "worker: $status"; exit 0; fi
+            sleep 2
+          done
+          echo "El worker no quedó healthy (último estado: $status)" >&2
+          exit 1
       - name: Verificar errores RFC 9457 y usuario no root
         run: |
           curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/no-existe | grep -q 404

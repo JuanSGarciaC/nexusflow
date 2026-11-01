@@ -115,6 +115,13 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    # La imagen hereda el HEALTHCHECK HTTP de la API, pero aquí no escucha nada en :8000.
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A nexusflow.engine.worker:celery_app inspect ping -d celery@$$HOSTNAME --timeout 5"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
     # Al parar, Celery termina las tareas en curso antes de salir (acks_late).
     stop_grace_period: 60s
 
@@ -130,6 +137,9 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    # Beat no expone nada que sondear; sin esto heredaría el HEALTHCHECK HTTP de la API.
+    healthcheck:
+      disable: true
 
   # API externa simulada para demos y CI (perfil "demo"; no forma parte del producto).
   # Para que los flujos puedan llamarla por http dentro de la red de compose, en .env:
