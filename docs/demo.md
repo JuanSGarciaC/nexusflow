@@ -97,6 +97,22 @@ Cada ejecución del script crea un disparador nuevo (`erp-demo`) y usa un id de 
 así que se puede repetir. La ejecución lanzada aparece en **Ejecuciones** con origen
 `webhook`; como el pedido es de 2500, el flujo lo manda a revisión (`manual_review`).
 
+## Regenerar el GIF del README
+
+`frontend/e2e/demo.spec.ts` graba la demo con Playwright contra el stack con datos de
+demostración: hace las mismas peticiones reales (incluido el webhook firmado), comprueba los
+resultados (`401`/`202`/`200`, misma ejecución con la misma clave, viewer sin pestaña
+Ejecutar) y añade los rótulos. Si algo no se comporta como dice el rótulo, la grabación falla.
+
+```powershell
+cd frontend
+$env:RECORD_DEMO = "1"; $env:E2E_BASE_URL = "http://127.0.0.1:3000"; $env:E2E_PASSWORD = "demo-clave-larga-2026"
+pnpm exec playwright test demo
+ffmpeg -y -i test-results/demo-demo-del-README-chromium/video.webm `
+  -vf "fps=8,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" `
+  ../docs/demo/nexusflow-demo.gif
+```
+
 ## Preguntas que suelen salir
 
 Respuestas preparadas en [decisiones-y-tradeoffs.md](decisiones-y-tradeoffs.md#preguntas-típicas-y-cómo-responderlas).
