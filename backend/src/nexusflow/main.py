@@ -11,6 +11,7 @@ from redis.asyncio import Redis
 
 from nexusflow import __version__
 from nexusflow.audit.router import router as audit_router
+from nexusflow.auth.dependencies import document_write_limit
 from nexusflow.auth.router import auth_router, users_router
 from nexusflow.core.config import Settings, get_settings
 from nexusflow.core.errors import register_error_handlers
@@ -90,18 +91,21 @@ def create_app(settings: Settings | None = None, dispatcher: Dispatcher | None =
     # Añadido al final para ser el middleware más externo: todo log lleva request_id.
     app.add_middleware(RequestContextMiddleware)
 
-    app.include_router(health.router)
-    app.include_router(auth_router)
-    app.include_router(users_router)
-    app.include_router(workflows_router)
-    app.include_router(runs_router)
-    app.include_router(credentials_router)
-    app.include_router(schedules_router)
-    app.include_router(webhooks_router)
-    app.include_router(hooks_router)
-    app.include_router(analytics.router)
-    app.include_router(audit_router)
-    app.include_router(prometheus_router)
+    for router in (
+        health.router,
+        auth_router,
+        users_router,
+        workflows_router,
+        runs_router,
+        credentials_router,
+        schedules_router,
+        webhooks_router,
+        hooks_router,
+        analytics.router,
+        audit_router,
+        prometheus_router,
+    ):
+        app.include_router(document_write_limit(router))
     return app
 
 
