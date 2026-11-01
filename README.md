@@ -309,6 +309,8 @@ uv run pytest
 | `integration/test_demo_seed.py` | Seed idempotente con los cuatro roles, credenciales cifradas solo con tokens de `mock-partner`, rechazo de contraseña débil sin dejar datos a medias |
 | `frontend/src/api/session.test.ts` | **Cinco 401 simultáneos → una sola renovación** (dos con el mismo refresh token cerrarían la sesión por detección de robo), reintento con el token nuevo, sin reintentos en `/auth/`, sin bucles |
 | `frontend/src/test/app.test.tsx` | App completa con rutas reales: login fallido con el error RFC 9457 y su referencia, vuelta a la página pedida, sesión recuperada por cookie, menú y páginas según permisos, publicación bloqueada con incidencias, **conflicto 409 al guardar**, resolución manual solo para quien puede ejecutar |
+| `frontend/src/test/credentials.test.tsx` | **El secreto no aparece en la página tras guardarlo** ni al reabrir el formulario, campo de tipo contraseña, **cambiar de tipo descarta el secreto escrito** (no viaja con el tipo nuevo), error del servidor sin exponer el secreto, sin acceso para un viewer |
+| `frontend/src/test/audit.test.tsx` | Paginación por cursor (`before_id`) sin duplicados, filtro por prefijo con espera (no una consulta por tecla), error con su referencia, sin acceso sin `audit:read`. Ambas suites validadas con mutaciones |
 
 En CI se define `NEXUSFLOW_REQUIRE_INTEGRATION=1`. Si faltan los servicios, las pruebas
 de integración **fallan** en lugar de omitirse en silencio.
