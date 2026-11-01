@@ -66,7 +66,7 @@ demostración de `nexusflow seed-demo`, que son ficticios. Se regeneran con
 | Sistemas distribuidos | Celery con entrega *at-least-once*, reclamo atómico en PostgreSQL, lease y barrido de recuperación, pruebas con un worker real |
 | Operación | Logs JSON con `request_id`, health checks *liveness* / *readiness*, Docker no-root |
 | Frontend | React 19 + TypeScript estricto + Mantine, **cliente tipado generado desde OpenAPI** (el CI falla si el contrato se desincroniza), sesión en memoria + cookie HttpOnly con renovación serializada, CSP sin scripts inline |
-| Calidad | Ruff, mypy `strict`, ESLint; 370 pruebas de backend (88 % de cobertura con ramas, mínimo 85 % en CI) contra PostgreSQL y Redis reales, 27 de frontend y 8 E2E; CI con auditoría de dependencias y escaneo de secretos |
+| Calidad | Ruff, mypy `strict`, ESLint; 373 pruebas de backend (88 % de cobertura con ramas, mínimo 85 % en CI) contra PostgreSQL y Redis reales, 35 de frontend y 8 E2E; CI con auditoría de dependencias y escaneo de secretos |
 
 ## Arquitectura
 

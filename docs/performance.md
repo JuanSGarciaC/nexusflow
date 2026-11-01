@@ -136,8 +136,8 @@ demasiado ruidoso para umbrales ajustados.
 ## Cobertura de pruebas
 
 El umbral de **85 %** del backend (`fail_under = 85` en `pyproject.toml`) lo aplica
-`pytest --cov` en el CI: si baja, el job falla. Última medición completa en local, en la rama del PR de rate limiting (366
-pruebas, unitarias e integración contra PostgreSQL y Redis reales): **87,98 %**. El frontend
+`pytest --cov` en el CI: si baja, el job falla. Última medición completa en local, el 1 nov 2026 con las mejoras de portafolio
+integradas (373 pruebas, unitarias e integración contra PostgreSQL y Redis reales): **88,18 %**. El frontend
 tiene un **suelo** en `vite.config.ts` (72 % sentencias, 61 % ramas, 61 % funciones, 72 %
 líneas) que el CI aplica con `pnpm test:coverage`. Lo medido el 1 nov 2026 (35 pruebas) es
 74,2 % / 63,1 % / 63,6 % / 74,8 %, frente a 65,7 % / 56,7 % / 52 % / 66,7 % antes de añadir
