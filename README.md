@@ -58,7 +58,7 @@ demostración de `nexusflow seed-demo`, que son ficticios. Se regeneran con
 | Sistemas distribuidos | Celery con entrega *at-least-once*, reclamo atómico en PostgreSQL, lease y barrido de recuperación, pruebas con un worker real |
 | Operación | Logs JSON con `request_id`, health checks *liveness* / *readiness*, Docker no-root |
 | Frontend | React 19 + TypeScript estricto + Mantine, **cliente tipado generado desde OpenAPI** (el CI falla si el contrato se desincroniza), sesión en memoria + cookie HttpOnly con renovación serializada, CSP sin scripts inline |
-| Calidad | Ruff, mypy `strict`, ESLint; 362 pruebas de backend (88 % de cobertura con ramas, mínimo 85 % en CI) contra PostgreSQL y Redis reales, 27 de frontend y 8 E2E; CI con auditoría de dependencias y escaneo de secretos |
+| Calidad | Ruff, mypy `strict`, ESLint; 370 pruebas de backend (88 % de cobertura con ramas, mínimo 85 % en CI) contra PostgreSQL y Redis reales, 27 de frontend y 8 E2E; CI con auditoría de dependencias y escaneo de secretos |
 
 ## Arquitectura
 
@@ -302,6 +302,7 @@ uv run pytest
 | `unit/test_webhook_signing.py` | Firma: manipulación de un byte, otro secreto, ventana de tiempo, **timestamp reescrito**, cabeceras mal formadas, rotación con dos firmas |
 | `integration/test_schedules.py` | API y permisos (solo editor/admin), validación de cron y zona horaria, **disparo con la clave de idempotencia (la caída entre crear la ejecución y avanzar no duplica)**, **5 barridos simultáneos → una sola ejecución**, disparos perdidos omitidos, errores anotados sin detener la programación; más un disparo real por la tarea de barrido con un worker Celery |
 | `unit/test_cron.py` | Expresiones, zonas horarias, **salto de hora de primavera y repetición de otoño** (Europe/Madrid), expresiones inválidas |
+| `integration/test_case_study_webhook_flow.py` | **Caso de estudio de punta a punta** ([docs](docs/caso-de-estudio-webhook.md)): firma rechazada → webhook firmado → 503 → reintento → éxito → reentrega del mismo evento sin nueva ejecución ni llamada → un solo `run.created` en auditoría. Validada con dos mutaciones |
 | `integration/test_webhooks.py` | Entrada: secreto mostrado una vez, entrada filtrada, **deduplicación con y sin id de evento**, firmas rechazadas (ausente, otra, caducada, cuerpo cambiado), 404 indistinguible, rotación, límite de uso. Salida: **evento firmado verificado por el receptor**, filtros, **el outbox se deshace con el rollback**, reintentos con el mismo `event_id` → dead-letter → reenvío, anti-SSRF, recuperación por barrido |
 | `integration/test_observability.py` | Métricas que reflejan ejecuciones reales (éxitos, fallos, reintentos, clases de error, flujos con más fallos); **percentiles exactos** con duraciones conocidas; ventana y filtro por flujo; canceladas fuera de la tasa de éxito; `/metrics` con token, etiquetas por plantilla de ruta (sin ids); auditoría con filtros, **paginación por cursor sin solapes** y prefijo que no actúa como comodín |
 | `integration/test_workflows_api.py` | Ciclo de vida borrador → publicación → nueva versión, concurrencia optimista (4 guardados simultáneos: 1 gana), **inmutabilidad en la base de datos**, archivo, búsqueda literal, límite de tamaño (413) |
@@ -585,6 +586,7 @@ Credenciales (Fase 5):
 | [docs/security-review.md](docs/security-review.md) | Revisión frente al OWASP API Top 10 (2023): control y prueba que lo respalda en cada punto, y limitaciones aceptadas |
 | [docs/performance.md](docs/performance.md) | Planes y tiempos de las consultas críticas con 50 000 ejecuciones, la optimización aplicada y cuándo dejará de bastar |
 | [docs/adr/](docs/adr/) | 11 decisiones de arquitectura con alternativas descartadas |
+| [docs/caso-de-estudio-webhook.md](docs/caso-de-estudio-webhook.md) | Un pedido por webhook de punta a punta: firma, 503, reintento, reentrega sin duplicar y auditoría, con su diagrama de secuencia, límites de confianza y la prueba que lo demuestra |
 | [docs/decisiones-y-tradeoffs.md](docs/decisiones-y-tradeoffs.md) | Las decisiones más preguntadas con su coste y cuándo se revertirían, preguntas de entrevista y deuda conocida |
 | [SECURITY.md](SECURITY.md) | Cómo reportar una vulnerabilidad |
 | `/docs` (Swagger) y [backend/openapi.json](backend/openapi.json) | Referencia completa de los endpoints |
