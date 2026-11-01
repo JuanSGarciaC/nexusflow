@@ -3,7 +3,7 @@
 # ---- Etapa 1: dependencias y paquete en un entorno virtual aislado ----
 FROM ghcr.io/astral-sh/uv:0.13.6 AS uv
 
-FROM python:3.13-slim AS builder
+FROM python:3.15-slim AS builder
 COPY --from=uv /uv /bin/uv
 
 ENV UV_COMPILE_BYTECODE=1 \
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
 
 # ---- Etapa 2: imagen final mínima, sin uv ni herramientas de compilación ----
-FROM python:3.13-slim AS runtime
+FROM python:3.15-slim AS runtime
 
 # pip no hace falta en ejecución y arrastra librerías vendorizadas (msgpack, urllib3) con
 # CVE que Trivy reporta aunque la app no las use: se elimina para reducir superficie.
