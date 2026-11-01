@@ -6,7 +6,9 @@ import ipaddress
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import APIRouter, Depends, Request
+from fastapi.dependencies.models import Dependant
+from fastapi.routing import APIRoute
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -103,6 +105,32 @@ async def limit_writes(
         return
     rule = RateLimit("write_user", settings.write_rate_limit_per_user, 60)
     await limiter.hit(rule, str(user.id))
+
+
+def _depends_on(dependant: Dependant, call: object) -> bool:
+    return any(d.call is call or _depends_on(d, call) for d in dependant.dependencies)
+
+
+def document_write_limit(router: APIRouter) -> APIRouter:
+    """Declara en el contrato el 429 de `limit_writes` en cada escritura que lo aplica.
+
+    Como el propio límite, se deriva de las dependencias: una ruta nueva queda documentada
+    sin tocarla. Si la ruta ya declara su propio 429 (p. ej. crear ejecuciones), se respeta.
+    """
+    for route in router.routes:
+        if (
+            isinstance(route, APIRoute)
+            and (route.methods or set()) - _SAFE_METHODS
+            and _depends_on(route.dependant, limit_writes)
+        ):
+            route.responses.setdefault(
+                429,
+                {
+                    "description": "Límite de escrituras por minuto superado (ver Retry-After)",
+                    "content": {"application/problem+json": {}},
+                },
+            )
+    return router
 
 
 async def limit_webhook_dispatch(
