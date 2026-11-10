@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { api, describeError, unwrap, type Schemas } from "../../api/client";
 import { RequirePermission } from "../../auth/RequirePermission";
+import { ConfirmModal } from "../../components/ConfirmModal";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { GlowCard } from "../../components/GlowCard";
 import { PageHeader } from "../../components/PageHeader";
@@ -31,6 +32,7 @@ function Subscriptions() {
   const [url, setUrl] = useState("");
   const [events, setEvents] = useState(["run.succeeded", "run.failed"]);
   const [rotating, setRotating] = useState<Subscription | null>(null);
+  const [deleting, setDeleting] = useState<Subscription | null>(null);
   const [viewing, setViewing] = useState<Subscription | null>(null);
   // El secreto vive solo aquí: las mutaciones no lo devuelven (ver TriggersTab).
   const [secret, setSecret] = useState<string | null>(null);
@@ -74,7 +76,10 @@ function Subscriptions() {
   const remove = useMutation({
     mutationFn: (id: string) =>
       unwrap(api.DELETE("/api/v1/webhook-subscriptions/{subscription_id}", { params: { path: { subscription_id: id } } })),
-    onSuccess: refresh,
+    onSuccess: () => {
+      setDeleting(null);
+      return refresh();
+    },
   });
   const ping = useMutation({
     mutationFn: (id: string) =>
@@ -90,7 +95,7 @@ function Subscriptions() {
         description="Avisos firmados a otros sistemas cuando una ejecución termina. Si el destino falla, se reintenta con espera creciente."
         actions={<Button onClick={() => setCreating(true)}>Nueva suscripción</Button>}
       />
-      <ErrorAlert error={list.error ?? toggle.error ?? remove.error ?? rotate.error} />
+      <ErrorAlert error={list.error ?? toggle.error} />
       <GlowCard spin={false} p={0}>
         {list.data?.length === 0 && (
           <Text c="dimmed" p="lg">
@@ -146,7 +151,11 @@ function Subscriptions() {
                       >
                         <IconSend size={16} />
                       </Button>
-                      <Button variant="subtle" size="xs" aria-label={`Rotar secreto de ${s.name}`} onClick={() => setRotating(s)}>
+                      <Button variant="subtle" size="xs" aria-label={`Rotar secreto de ${s.name}`} onClick={() => {
+                          rotate.reset();
+                          setRotating(s);
+                        }}
+                      >
                         <IconRefresh size={16} />
                       </Button>
                       <Button
@@ -154,8 +163,10 @@ function Subscriptions() {
                         color="red"
                         size="xs"
                         aria-label={`Eliminar ${s.name}`}
-                        loading={remove.isPending && remove.variables === s.id}
-                        onClick={() => remove.mutate(s.id)}
+                        onClick={() => {
+                          remove.reset();
+                          setDeleting(s);
+                        }}
                       >
                         <IconTrash size={16} />
                       </Button>
@@ -168,7 +179,7 @@ function Subscriptions() {
         )}
       </GlowCard>
 
-      <Modal opened={creating} onClose={() => setCreating(false)} title="Nueva suscripción" centered>
+      <Modal opened={creating} onClose={() => !create.isPending && setCreating(false)} title="Nueva suscripción" centered>
         <Stack>
           <TextInput label="Nombre" required maxLength={100} value={name} onChange={(e) => setName(e.currentTarget.value)} />
           <TextInput
@@ -192,21 +203,35 @@ function Subscriptions() {
         </Stack>
       </Modal>
 
-      <Modal opened={rotating !== null} onClose={() => setRotating(null)} title="Rotar secreto" centered>
-        <Stack>
-          <Text size="sm">
-            Las entregas a <strong>{rotating?.name}</strong> se firmarán con el secreto nuevo desde ahora. El destino debe actualizarlo o rechazará las firmas.
-          </Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setRotating(null)}>
-              Cancelar
-            </Button>
-            <Button color="orange" loading={rotate.isPending} onClick={() => rotating && rotate.mutate(rotating.id)}>
-              Rotar
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+
+      <ConfirmModal
+        opened={rotating !== null}
+        title="Rotar secreto"
+        confirmLabel="Rotar"
+        color="orange"
+        loading={rotate.isPending}
+        error={rotate.error}
+        onConfirm={() => rotating && rotate.mutate(rotating.id)}
+        onClose={() => setRotating(null)}
+      >
+        <Text size="sm">
+          Las entregas a <strong>{rotating?.name}</strong> se firmarán con el secreto nuevo desde ahora. El destino debe actualizarlo o rechazará las firmas.
+        </Text>
+      </ConfirmModal>
+
+      <ConfirmModal
+        opened={deleting !== null}
+        title="Eliminar suscripción"
+        confirmLabel="Eliminar"
+        loading={remove.isPending}
+        error={remove.error}
+        onConfirm={() => deleting && remove.mutate(deleting.id)}
+        onClose={() => setDeleting(null)}
+      >
+        <Text size="sm">
+          <strong>{deleting?.name}</strong> dejará de recibir avisos y se perderá su historial de entregas. No se puede deshacer.
+        </Text>
+      </ConfirmModal>
 
       <SecretOnce title="Secreto de la suscripción" secret={secret} onClose={() => setSecret(null)} />
       <DeliveriesDrawer subscription={viewing} onClose={() => setViewing(null)} />

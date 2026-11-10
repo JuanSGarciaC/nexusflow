@@ -128,8 +128,15 @@ body {
   [data-motion],
   [data-motion]::before,
   [data-motion]::after,
-  [data-motion] * {
+  [data-motion] *,
+  [data-motion] *::before,
+  [data-motion] *::after {
     animation: none !important;
     transition: none !important;
+  }
+
+  /* La inclinación la escribe JS en variables CSS: anular la transición no basta. */
+  [data-tilt] {
+    transform: none !important;
   }
 }

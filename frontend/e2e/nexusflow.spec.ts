@@ -179,11 +179,25 @@ test("editor crea una suscripción de webhook, hace ping y ve la entrega", async
   await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: `Eliminar ${name}` }).click();
-  await expect(page.getByText(name)).toHaveCount(0);
+  await page.getByRole("dialog", { name: "Eliminar suscripción" }).getByRole("button", { name: "Eliminar" }).click();
+  await expect(page.getByRole("cell", { name })).toHaveCount(0);
 });
 
 test("un viewer no llega a los webhooks ni forzando la URL", async ({ page }) => {
   await loginAs(page, "viewer", "/webhooks");
   await expect(page.getByText("Sin acceso")).toBeVisible();
   await expect(nav(page).getByText("Webhooks")).toHaveCount(0);
+});
+
+test("con movimiento reducido no hay giro de borde ni inclinación de tarjetas", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await loginAs(page, "admin", "/");
+  const card = page.getByTestId("glow-card").first();
+  await expect(card).toBeVisible();
+  await card.hover({ position: { x: 5, y: 5 } }); // una esquina: máxima inclinación
+  const motion = await card.evaluate((el) => ({
+    transform: getComputedStyle(el).transform,
+    border: getComputedStyle(el, "::before").animationName,
+  }));
+  expect(motion).toEqual({ transform: "none", border: "none" });
 });

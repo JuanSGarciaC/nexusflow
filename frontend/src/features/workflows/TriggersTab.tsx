@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { api, unwrap, type Schemas } from "../../api/client";
+import { ConfirmModal } from "../../components/ConfirmModal";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { SecretOnce } from "../../components/SecretOnce";
 import { formatDate } from "../../lib/format";
@@ -24,6 +25,7 @@ export function TriggersTab({ workflowId }: { workflowId: string }) {
   const [name, setName] = useState("");
   const [limit, setLimit] = useState<number>(60);
   const [rotating, setRotating] = useState<Trigger | null>(null);
+  const [deleting, setDeleting] = useState<Trigger | null>(null);
   // El secreto vive solo aquí. Las mutaciones lo entregan con setSecret y no lo devuelven,
   // para que no quede retenido en la caché de mutaciones de react-query.
   const [secret, setSecret] = useState<string | null>(null);
@@ -61,12 +63,15 @@ export function TriggersTab({ workflowId }: { workflowId: string }) {
   });
   const remove = useMutation({
     mutationFn: (id: string) => unwrap(api.DELETE("/api/v1/triggers/{trigger_id}", { params: { path: { trigger_id: id } } })),
-    onSuccess: refresh,
+    onSuccess: () => {
+      setDeleting(null);
+      return refresh();
+    },
   });
 
   return (
     <Stack>
-      <ErrorAlert error={list.error ?? toggle.error ?? remove.error ?? rotate.error} />
+      <ErrorAlert error={list.error ?? toggle.error} />
       <Group justify="space-between">
         <Text size="sm" c="dimmed">
           Un sistema externo lanza este flujo con un POST firmado (HMAC) a la URL del disparador. Los reenvíos del mismo evento se deduplican.
@@ -116,7 +121,11 @@ export function TriggersTab({ workflowId }: { workflowId: string }) {
                   </Table.Td>
                   <Table.Td>
                     <Group gap={4} wrap="nowrap" justify="flex-end">
-                      <Button variant="subtle" size="xs" aria-label={`Rotar secreto de ${t.name}`} onClick={() => setRotating(t)}>
+                      <Button variant="subtle" size="xs" aria-label={`Rotar secreto de ${t.name}`} onClick={() => {
+                          rotate.reset();
+                          setRotating(t);
+                        }}
+                      >
                         <IconRefresh size={16} />
                       </Button>
                       <Button
@@ -124,8 +133,10 @@ export function TriggersTab({ workflowId }: { workflowId: string }) {
                         color="red"
                         size="xs"
                         aria-label={`Eliminar ${t.name}`}
-                        loading={remove.isPending && remove.variables === t.id}
-                        onClick={() => remove.mutate(t.id)}
+                        onClick={() => {
+                          remove.reset();
+                          setDeleting(t);
+                        }}
                       >
                         <IconTrash size={16} />
                       </Button>
@@ -138,7 +149,7 @@ export function TriggersTab({ workflowId }: { workflowId: string }) {
         </Table>
       )}
 
-      <Modal opened={creating} onClose={() => setCreating(false)} title="Nuevo disparador" centered>
+      <Modal opened={creating} onClose={() => !create.isPending && setCreating(false)} title="Nuevo disparador" centered>
         <Stack>
           <TextInput label="Nombre" required maxLength={100} value={name} onChange={(e) => setName(e.currentTarget.value)} />
           <NumberInput
@@ -162,21 +173,35 @@ export function TriggersTab({ workflowId }: { workflowId: string }) {
         </Stack>
       </Modal>
 
-      <Modal opened={rotating !== null} onClose={() => setRotating(null)} title="Rotar secreto" centered>
-        <Stack>
-          <Text size="sm">
-            El secreto actual de <strong>{rotating?.name}</strong> dejará de valer de inmediato: las peticiones firmadas con él recibirán 401 hasta que el sistema externo use el nuevo.
-          </Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setRotating(null)}>
-              Cancelar
-            </Button>
-            <Button color="orange" loading={rotate.isPending} onClick={() => rotating && rotate.mutate(rotating.id)}>
-              Rotar
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+
+      <ConfirmModal
+        opened={rotating !== null}
+        title="Rotar secreto"
+        confirmLabel="Rotar"
+        color="orange"
+        loading={rotate.isPending}
+        error={rotate.error}
+        onConfirm={() => rotating && rotate.mutate(rotating.id)}
+        onClose={() => setRotating(null)}
+      >
+        <Text size="sm">
+          El secreto actual de <strong>{rotating?.name}</strong> dejará de valer de inmediato: las peticiones firmadas con él recibirán 401 hasta que el sistema externo use el nuevo.
+        </Text>
+      </ConfirmModal>
+
+      <ConfirmModal
+        opened={deleting !== null}
+        title="Eliminar disparador"
+        confirmLabel="Eliminar"
+        loading={remove.isPending}
+        error={remove.error}
+        onConfirm={() => deleting && remove.mutate(deleting.id)}
+        onClose={() => setDeleting(null)}
+      >
+        <Text size="sm">
+          Se eliminan la URL y el secreto de <strong>{deleting?.name}</strong> y no se pueden recuperar: el sistema externo que lo llama empezará a recibir 404.
+        </Text>
+      </ConfirmModal>
 
       <SecretOnce title="Secreto del disparador" secret={secret} onClose={() => setSecret(null)} />
     </Stack>

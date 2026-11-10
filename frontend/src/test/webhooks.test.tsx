@@ -143,6 +143,34 @@ describe("disparadores de un flujo", () => {
     expect(await screen.findByText(SECRET)).toBeInTheDocument();
   });
 
+  it("eliminar un disparador pide confirmación antes de borrar", async () => {
+    const api = loggedInAs(ADMIN_ME, {
+      [`DELETE /api/v1/triggers/${TRIGGER_ID}`]: () => new Response(null, { status: 204 }),
+    });
+    renderApp(`/workflows/${WF_ID}`);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: "Disparadores" }));
+    await user.click(await screen.findByRole("button", { name: "Eliminar Pedidos ERP" }));
+    const dialog = await screen.findByRole("dialog", { name: "Eliminar disparador" });
+    expect(api.calls.some((c) => c.method === "DELETE")).toBe(false);
+    await user.click(within(dialog).getByRole("button", { name: "Eliminar" }));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "DELETE")).toBe(true));
+  });
+
+  it("si rotar falla, el error se ve dentro del diálogo", async () => {
+    loggedInAs(ADMIN_ME, {
+      [`POST /api/v1/triggers/${TRIGGER_ID}/rotate-secret`]: () =>
+        json({ title: "Conflicto", status: 409, detail: "El disparador está archivado.", request_id: "r5" }, 409),
+    });
+    renderApp(`/workflows/${WF_ID}`);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: "Disparadores" }));
+    await user.click(await screen.findByRole("button", { name: "Rotar secreto de Pedidos ERP" }));
+    const dialog = await screen.findByRole("dialog", { name: "Rotar secreto" });
+    await user.click(within(dialog).getByRole("button", { name: "Rotar" }));
+    expect(await within(dialog).findByText("El disparador está archivado.")).toBeInTheDocument();
+  });
+
   it("pausar envía is_active false", async () => {
     let body: unknown;
     loggedInAs(ADMIN_ME, {
@@ -213,6 +241,20 @@ describe("webhooks salientes", () => {
     expect(buttons[1]).toBeDisabled();
     await user.click(buttons[0] as HTMLElement);
     await waitFor(() => expect(api.calls.some((c) => c.path === `/api/v1/webhook-deliveries/${DELIVERY_ID}/redeliver`)).toBe(true));
+  });
+
+  it("eliminar una suscripción pide confirmación antes de borrar", async () => {
+    const api = loggedInAs(ADMIN_ME, {
+      [`DELETE /api/v1/webhook-subscriptions/${SUB_ID}`]: () => new Response(null, { status: 204 }),
+    });
+    renderApp("/webhooks");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Eliminar Avisos a facturación" }));
+    const dialog = await screen.findByRole("dialog", { name: "Eliminar suscripción" });
+    expect(dialog).toHaveTextContent("historial de entregas");
+    expect(api.calls.some((c) => c.method === "DELETE")).toBe(false);
+    await user.click(within(dialog).getByRole("button", { name: "Eliminar" }));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "DELETE")).toBe(true));
   });
 
   it("las entregas se paginan con limit y offset", async () => {

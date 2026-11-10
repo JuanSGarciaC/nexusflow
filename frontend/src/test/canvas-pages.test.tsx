@@ -174,6 +174,27 @@ describe("lienzo y reejecución en el detalle de ejecución", () => {
     expect(body).toEqual({ input: { amount: 5 }, version: 1 });
   });
 
+  it("la ejecución nueva no hereda los pasos abiertos de la anterior", async () => {
+    const NEW_STEP = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const fresh = run("failed");
+    loggedInAs(ADMIN_ME, {
+      // La original terminó bien: ningún paso abierto.
+      [`GET /api/v1/runs/${RUN_ID}`]: () => {
+        const r = run("succeeded");
+        return json({ ...r, steps: r.steps.map((s) => ({ ...s, status: "succeeded", error: null })) });
+      },
+      [`GET /api/v1/runs/${NEW_RUN_ID}`]: () => json({ ...fresh, id: NEW_RUN_ID, steps: fresh.steps.map((s) => ({ ...s, id: NEW_STEP })) }),
+      [`POST /api/v1/workflows/${WF_ID}/runs`]: () => json({ ...fresh, id: NEW_RUN_ID }, 202),
+    });
+    const { router } = renderApp(`/runs/${RUN_ID}`);
+    const user = userEvent.setup();
+    expect(await screen.findByRole("button", { name: /1\. viejo/ })).toHaveAttribute("aria-expanded", "false");
+    await user.click(screen.getByRole("button", { name: "Reejecutar" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/runs/${NEW_RUN_ID}`));
+    // La nueva falló: su paso debe abrirse solo, como en cualquier ejecución recién abierta.
+    await waitFor(() => expect(screen.getByRole("button", { name: /1\. viejo/ })).toHaveAttribute("aria-expanded", "true"));
+  });
+
   it("si la API rechaza la reejecución, muestra el error y no navega", async () => {
     loggedInAs(ADMIN_ME, {
       [`GET /api/v1/runs/${RUN_ID}`]: () => json(run("failed")),

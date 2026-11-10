@@ -142,7 +142,7 @@ tiene un **suelo** en `vite.config.ts` (80 % sentencias, 70 % ramas, 69 % funcio
 líneas) que el CI aplica con `pnpm test:coverage`. Lo medido el 1 nov 2026 (35 pruebas) es
 74,2 % / 63,1 % / 63,6 % / 74,8 %, frente a 65,7 % / 56,7 % / 52 % / 66,7 % antes de añadir
 las pruebas de auditoría y credenciales (antes al 0 %, ahora 100 % y 96 % de sentencias).
-Tras el rediseño del panel (9 nov 2026, 87 pruebas) lo medido es 82,6 % / 73,1 % / 71,8 % /
+Tras el rediseño del panel (9 nov 2026, 91 pruebas) lo medido es 82,6 % / 73,1 % / 71,8 % /
 82,9 %, y el suelo sube con ello. Siguen bajas las pantallas de ejecuciones y usuarios (≈54 % y 56 % de sentencias). El suelo
 solo impide retroceder.
 

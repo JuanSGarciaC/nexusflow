@@ -273,7 +273,7 @@ pnpm exec playwright install chromium     # una vez
 $env:E2E_PASSWORD = "demo-clave-larga-2026"; pnpm e2e
 ```
 
-Las 11 pruebas cubren:
+Las 12 pruebas cubren:
 - un operador ejecuta un flujo y ve el resultado del worker;
 - la clave de idempotencia evita duplicados;
 - un editor ve los errores del validador y publica;
@@ -283,7 +283,8 @@ Las 11 pruebas cubren:
 - un editor crea, pausa y elimina una programación cron (y el operador no la ve);
 - un operador reejecuta una ejecución fallida y llega a la ejecución nueva;
 - un editor crea una suscripción de webhook, hace ping y ve la entrega;
-- un viewer no llega a los webhooks ni forzando la URL.
+- un viewer no llega a los webhooks ni forzando la URL;
+- con `prefers-reduced-motion` no hay giro de borde ni inclinación de tarjetas.
 
 En CI se ejecutan contra nginx + API + worker en Docker y, si fallan, se guarda el informe
 con trazas.

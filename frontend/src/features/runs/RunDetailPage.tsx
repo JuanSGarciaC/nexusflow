@@ -148,6 +148,12 @@ function StepPanel({ step }: { step: Step }) {
 
 export function RunDetailPage() {
   const { runId = "" } = useParams();
+  // La key remonta la página al cambiar de ejecución (Reejecutar navega dentro de la misma
+  // ruta): pasos abiertos, errores y diálogos de la anterior no se heredan.
+  return <RunDetail key={runId} runId={runId} />;
+}
+
+function RunDetail({ runId }: { runId: string }) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
