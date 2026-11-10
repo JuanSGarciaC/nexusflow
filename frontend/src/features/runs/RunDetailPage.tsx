@@ -1,9 +1,9 @@
 import { Accordion, Alert, Anchor, Button, Card, Group, JsonInput, Modal, SimpleGrid, Skeleton, Stack, Table, Text, Textarea, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconAlertTriangle } from "@tabler/icons-react";
+import { IconAlertTriangle, IconRefresh } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 import { api, unwrap, type Schemas } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
@@ -12,11 +12,14 @@ import { JsonView } from "../../components/JsonView";
 import { PageHeader } from "../../components/PageHeader";
 import { StatusBadge } from "../../components/StatusBadge";
 import { formatDate, formatDuration, shortId } from "../../lib/format";
+import { LazyFlowCanvas } from "../canvas/LazyFlowCanvas";
 import { parseJson } from "../workflows/templates";
+import { versionQuery } from "../workflows/VersionViewer";
 
 type Step = Schemas["StepView"];
 type ResolveAction = Schemas["ResolveStep"]["action"];
 const ACTIVE = new Set(["pending", "running"]);
+const FINISHED = new Set(["succeeded", "failed", "cancelled", "timed_out"]);
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -147,7 +150,10 @@ export function RunDetailPage() {
   const { runId = "" } = useParams();
   const { can } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [resolving, setResolving] = useState<Step | null>(null);
+  // null = aún no se ha tocado el acordeón: se abren los pasos que no terminaron bien.
+  const [opened, setOpened] = useState<string[] | null>(null);
   const run = useQuery({
     queryKey: ["run", runId],
     queryFn: () => unwrap(api.GET("/api/v1/runs/{run_id}", { params: { path: { run_id: runId } } })),
@@ -159,11 +165,36 @@ export function RunDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["run", runId] }),
   });
 
+  // El lienzo usa la definición de la versión que se ejecutó, no la actual del flujo.
+  const version = useQuery({
+    ...versionQuery(run.data?.workflow_id ?? "", run.data?.version ?? 0),
+    enabled: run.data !== undefined,
+    staleTime: Infinity,
+  });
+  const rerun = useMutation({
+    mutationFn: (r: Schemas["RunDetail"]) =>
+      unwrap(
+        api.POST("/api/v1/workflows/{workflow_id}/runs", {
+          params: { path: { workflow_id: r.workflow_id } },
+          // Sin idempotency_key: reutilizar la original devolvería la misma ejecución.
+          body: { input: r.input as Record<string, never>, version: r.version },
+        }),
+      ),
+    onSuccess: (created) => navigate(`/runs/${created.id}`),
+  });
+
   if (run.error) return <ErrorAlert error={run.error} />;
   if (!run.data) return <Skeleton h={400} />;
   const r = run.data;
   const cancellable = ["pending", "running", "needs_review"].includes(r.status);
   const canExecute = can("workflows:execute");
+  const openSteps = opened ?? r.steps.filter((s) => s.status !== "succeeded").map((s) => s.id);
+  const showStep = (stepId: string) => {
+    const step = r.steps.find((s) => s.step_id === stepId);
+    if (!step) return;
+    setOpened([...new Set([...openSteps, step.id])]);
+    document.getElementById(`step-${step.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 
   return (
     <>
@@ -182,10 +213,15 @@ export function RunDetailPage() {
                 Cancelar
               </Button>
             )}
+            {canExecute && FINISHED.has(r.status) && (
+              <Button variant="light" size="xs" leftSection={<IconRefresh size={14} />} loading={rerun.isPending} onClick={() => rerun.mutate(r)}>
+                Reejecutar
+              </Button>
+            )}
           </>
         }
       />
-      <ErrorAlert error={cancel.error} />
+      <ErrorAlert error={cancel.error ?? rerun.error} />
       <Stack>
         <Card withBorder>
           <SimpleGrid cols={{ base: 2, md: 5 }}>
@@ -201,10 +237,16 @@ export function RunDetailPage() {
             {String(r.error.message ?? "")}
           </Alert>
         )}
+        {version.data && <LazyFlowCanvas definition={version.data.definition} steps={r.steps} onSelectStep={showStep} height={360} />}
+        {version.error && (
+          <Text size="sm" c="dimmed">
+            No se pudo cargar el lienzo de esta versión.
+          </Text>
+        )}
         <Title order={4}>Pasos</Title>
-        <Accordion variant="separated" multiple defaultValue={r.steps.filter((s) => s.status !== "succeeded").map((s) => s.id)}>
+        <Accordion variant="separated" multiple value={openSteps} onChange={setOpened}>
           {r.steps.map((step) => (
-            <Accordion.Item key={step.id} value={step.id}>
+            <Accordion.Item key={step.id} value={step.id} id={`step-${step.id}`}>
               <Accordion.Control>
                 <Group justify="space-between" pr="md">
                   <Text fw={600} ff="monospace">
