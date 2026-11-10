@@ -47,6 +47,13 @@ function loggedInAs(me: typeof ADMIN_ME, extra: Record<string, Handler> = {}) {
 beforeEach(() => setAccessToken(null));
 
 describe("autenticación", () => {
+  it("el panel fuerza el tema oscuro", async () => {
+    installFakeApi({ "POST /api/v1/auth/refresh": () => json({ title: "No autenticado", status: 401 }, 401) });
+    renderApp("/login");
+    await screen.findByRole("button", { name: "Entrar" });
+    expect(document.documentElement).toHaveAttribute("data-mantine-color-scheme", "dark");
+  });
+
   it("sin sesión muestra el login y explica un error de credenciales", async () => {
     const api = installFakeApi({
       "POST /api/v1/auth/refresh": () => json({ title: "No autenticado", status: 401 }, 401),

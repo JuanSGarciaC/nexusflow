@@ -1,0 +1,20 @@
+/* Tokens del sistema visual. Un solo tema (oscuro): ver ADR-0013. */
+:root {
+  --nf-bg: #07080d;
+  --nf-surface: rgba(20, 22, 34, 0.72);
+  --nf-surface-solid: #12141f;
+  --nf-border: rgba(255, 255, 255, 0.08);
+  --nf-accent-a: #7c5cff;
+  --nf-accent-b: #22d3ee;
+  --nf-accent-c: #f472b6;
+  --nf-gradient: linear-gradient(120deg, var(--nf-accent-a), var(--nf-accent-b));
+  --nf-glow: rgba(124, 92, 255, 0.22);
+  --nf-ok: #34d399;
+  --nf-fail: #fb7185;
+  --nf-run: #38bdf8;
+  --nf-warn: #fbbf24;
+  --nf-idle: #64748b;
+  --nf-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 12px 32px -12px rgba(0, 0, 0, 0.7);
+  --nf-dur-spin: 8s;
+  --nf-dur-pulse: 1.6s;
+}

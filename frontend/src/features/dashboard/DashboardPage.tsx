@@ -6,6 +6,7 @@ import { Link } from "react-router";
 
 import { api, unwrap } from "../../api/client";
 import { ErrorAlert } from "../../components/ErrorAlert";
+import { GlowCard } from "../../components/GlowCard";
 import { PageHeader } from "../../components/PageHeader";
 import { StatusBadge } from "../../components/StatusBadge";
 import { formatDate, formatDuration, formatPercent } from "../../lib/format";
@@ -18,11 +19,11 @@ const WINDOWS = [
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <Card withBorder padding="md">
-      <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+    <GlowCard tilt>
+      <Text size="xs" c="dimmed" tt="uppercase" fw={600} lts={0.6}>
         {label}
       </Text>
-      <Text size="xl" fw={700} mt={4} data-testid={`stat-${label}`}>
+      <Text fz={34} fw={700} lh={1.15} mt={6} className="nf-gradient-text" data-testid={`stat-${label}`}>
         {value}
       </Text>
       {hint && (
@@ -30,7 +31,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
           {hint}
         </Text>
       )}
-    </Card>
+    </GlowCard>
   );
 }
 
@@ -85,8 +86,8 @@ export function DashboardPage() {
               withLegend
               tickLine="y"
               series={[
-                { name: "Completadas", color: "teal.6" },
-                { name: "Fallidas", color: "red.6" },
+                { name: "Completadas", color: "teal.4" },
+                { name: "Fallidas", color: "pink.5" },
               ]}
             />
           </Card>

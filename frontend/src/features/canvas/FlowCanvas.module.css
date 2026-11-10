@@ -1,0 +1,224 @@
+.canvas {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--nf-border);
+  border-radius: var(--mantine-radius-lg);
+  background:
+    radial-gradient(600px 300px at 20% 0%, rgba(124, 92, 255, 0.12), transparent 70%),
+    radial-gradient(500px 280px at 90% 100%, rgba(34, 211, 238, 0.08), transparent 70%),
+    #0a0b12;
+  box-shadow: var(--nf-shadow);
+}
+
+.canvas :global(.react-flow) {
+  --xy-background-color: transparent;
+  --xy-edge-stroke: #565b7a;
+  --xy-edge-stroke-width: 1.6;
+  --xy-edge-label-background-color: #0a0b12;
+  --xy-edge-label-color: #aab0cf;
+  --xy-controls-button-background-color: var(--nf-surface-solid);
+  --xy-controls-button-border-color: var(--nf-border);
+  --xy-minimap-background-color: rgba(18, 20, 31, 0.9);
+}
+
+.canvas :global(.react-flow__minimap) {
+  border: 1px solid var(--nf-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Nodo: tarjeta de vidrio con profundidad. El color de estado va en --tone. */
+.node {
+  --tone: var(--nf-accent-a);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  padding: 0 14px;
+  border: 1px solid var(--nf-border);
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgba(34, 37, 56, 0.96), rgba(16, 18, 28, 0.96));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 14px 28px -14px rgba(0, 0, 0, 0.9);
+  color: #e8eaf6;
+  cursor: pointer;
+  outline: none;
+  transition: transform 160ms ease-out, opacity 160ms ease-out;
+}
+
+.node:hover,
+.node:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--tone);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 18px 34px -14px rgba(0, 0, 0, 0.9),
+    0 0 0 1px var(--tone),
+    0 0 26px -6px var(--tone);
+}
+
+.node[data-dimmed] {
+  opacity: 0.25;
+}
+
+.node[data-kind="condition"] {
+  --tone: var(--nf-accent-c);
+}
+.node[data-kind="http_request"] {
+  --tone: var(--nf-accent-b);
+}
+.node[data-kind="delay"] {
+  --tone: var(--nf-warn);
+}
+.node[data-kind="manual"],
+.node[data-kind="cron"],
+.node[data-kind="webhook"] {
+  --tone: var(--nf-ok);
+  border-style: dashed;
+  cursor: default;
+}
+
+.node[data-unreachable] {
+  border-style: dashed;
+  border-color: var(--nf-fail);
+}
+
+/* Modo ejecución: el borde toma el color del estado. */
+.node[data-run] {
+  border-color: var(--tone);
+}
+.node[data-run="succeeded"] {
+  --tone: var(--nf-ok);
+}
+.node[data-run="failed"] {
+  --tone: var(--nf-fail);
+  box-shadow: 0 0 28px -8px var(--nf-fail);
+}
+.node[data-run="running"] {
+  --tone: var(--nf-run);
+}
+.node[data-run="retry_scheduled"],
+.node[data-run="needs_review"] {
+  --tone: var(--nf-warn);
+}
+.node[data-run="pending"],
+.node[data-run="cancelled"] {
+  --tone: var(--nf-idle);
+}
+.node[data-run="skipped"] {
+  --tone: var(--nf-idle);
+  opacity: 0.6;
+  border-color: var(--nf-border);
+}
+
+/* Halo que late en el paso en curso o esperando reintento. Solo transform y opacity. */
+.node[data-run="running"]::after,
+.node[data-run="retry_scheduled"]::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 2px solid var(--tone);
+  border-radius: 18px;
+  animation: halo var(--nf-dur-pulse) ease-out infinite;
+  pointer-events: none;
+}
+
+.chip {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tone) 22%, transparent);
+  color: var(--tone);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.label {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.caption {
+  overflow: hidden;
+  color: #8f95b2;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attempts {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--nf-warn) 22%, transparent);
+  color: var(--nf-warn);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 10px var(--tone);
+}
+
+.handle {
+  width: 6px;
+  height: 6px;
+  border: none;
+  background: var(--tone);
+  opacity: 0.7;
+}
+
+/* Conexión recorrida: React Flow anima el trazo discontinuo; aquí solo el color y el ritmo. */
+.walked :global(.react-flow__edge-path) {
+  stroke: var(--nf-accent-b);
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 4px var(--nf-accent-b));
+  animation-duration: var(--nf-dur-pulse);
+}
+
+.triggerEdge :global(.react-flow__edge-path) {
+  stroke: var(--nf-ok);
+  stroke-dasharray: 4 5;
+}
+
+.tip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 260px;
+  font-size: 12px;
+}
+
+.tipError {
+  color: var(--nf-fail);
+  overflow-wrap: anywhere;
+}
+
+@keyframes halo {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}

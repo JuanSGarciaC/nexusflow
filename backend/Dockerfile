@@ -24,6 +24,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ---- Etapa 2: imagen final mínima, sin uv ni herramientas de compilación ----
 FROM python:3.13-slim AS runtime
 
+# La imagen base tarda en reconstruirse tras un parche de Debian: se aplican aquí las
+# actualizaciones de seguridad ya publicadas (p. ej. zlib1g), que Trivy exige en el CI.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 # pip no hace falta en ejecución y arrastra librerías vendorizadas (msgpack, urllib3) con
 # CVE que Trivy reporta aunque la app no las use: se elimina para reducir superficie.
 RUN python -m pip uninstall -y pip \
