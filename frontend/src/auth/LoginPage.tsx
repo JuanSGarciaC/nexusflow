@@ -1,9 +1,10 @@
-import { Button, Center, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Button, Center, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 
 import { ErrorAlert } from "../components/ErrorAlert";
+import { GlowCard } from "../components/GlowCard";
 import { useAuth } from "./AuthProvider";
 
 export function LoginPage() {
@@ -25,7 +26,7 @@ export function LoginPage() {
 
   return (
     <Center mih="100vh" p="md">
-      <Paper withBorder shadow="sm" p="xl" radius="md" w={380}>
+      <GlowCard p="xl" w={380}>
         <form
           onSubmit={form.onSubmit(async (values) => {
             setError(null);
@@ -39,7 +40,7 @@ export function LoginPage() {
         >
           <Stack>
             <div>
-              <Title order={2}>NexusFlow</Title>
+              <Title order={2} className="nf-gradient-text">NexusFlow</Title>
               <Text c="dimmed" size="sm">
                 Automatización de procesos
               </Text>
@@ -47,12 +48,12 @@ export function LoginPage() {
             <ErrorAlert error={error} title="No se pudo iniciar sesión" />
             <TextInput label="Email" type="email" autoComplete="username" required key={form.key("email")} {...form.getInputProps("email")} />
             <PasswordInput label="Contraseña" autoComplete="current-password" required key={form.key("password")} {...form.getInputProps("password")} />
-            <Button type="submit" loading={form.submitting}>
+            <Button type="submit" loading={form.submitting} variant="gradient" gradient={{ from: "nexus.4", to: "cyan.5", deg: 120 }}>
               Entrar
             </Button>
           </Stack>
         </form>
-      </Paper>
+      </GlowCard>
     </Center>
   );
 }

@@ -1,0 +1,142 @@
+/* Fondo fijo: dos degradados radiales tenues sobre una retícula de 32 px. */
+body {
+  background-color: var(--nf-bg);
+  background-image:
+    radial-gradient(900px 500px at 12% -10%, rgba(124, 92, 255, 0.16), transparent 60%),
+    radial-gradient(800px 480px at 95% 8%, rgba(34, 211, 238, 0.1), transparent 60%),
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px, 32px 32px;
+  background-attachment: fixed;
+}
+
+.nf-gradient-text {
+  background: var(--nf-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.nf-glass {
+  background: var(--nf-surface);
+  backdrop-filter: blur(14px);
+  border-color: var(--nf-border);
+}
+
+/* Enlace activo de la navegación: barra de acento con brillo. */
+.nf-nav[data-active] {
+  background: linear-gradient(90deg, rgba(124, 92, 255, 0.22), transparent);
+  box-shadow: inset 2px 0 0 var(--nf-accent-a), -6px 0 18px -8px var(--nf-accent-a);
+  color: #fff;
+}
+
+.nf-header-line {
+  height: 1px;
+  background: linear-gradient(90deg, var(--nf-accent-a), var(--nf-accent-b) 40%, transparent 80%);
+  opacity: 0.6;
+}
+
+/* Punto de estado de StatusBadge: hereda el color del texto de la insignia. */
+.nf-status-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.nf-status-dot[data-motion] {
+  animation: nf-beat var(--nf-dur-pulse) ease-in-out infinite;
+}
+
+/* Superficies de Mantine con el mismo vidrio que GlowCard, sin tocar cada pantalla.
+   Las clases mantine-* son API pública y estable de Mantine. */
+.mantine-Card-root,
+.mantine-Accordion-item,
+.mantine-Modal-content,
+.mantine-Drawer-content,
+.mantine-Menu-dropdown,
+.mantine-Popover-dropdown {
+  background: var(--nf-surface);
+  border-color: var(--nf-border);
+  box-shadow: var(--nf-shadow);
+  backdrop-filter: blur(14px);
+}
+
+.mantine-Modal-content,
+.mantine-Drawer-content,
+.mantine-Menu-dropdown,
+.mantine-Popover-dropdown {
+  background: var(--nf-surface-solid);
+}
+
+.mantine-Modal-header,
+.mantine-Drawer-header {
+  background: transparent;
+}
+
+.mantine-Input-input {
+  background: rgba(10, 11, 18, 0.7);
+  border-color: var(--nf-border);
+}
+
+.mantine-Input-input:focus,
+.mantine-Input-input:focus-within {
+  border-color: var(--nf-accent-a);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.18);
+}
+
+.mantine-Code-root {
+  background: #05060a;
+  border: 1px solid var(--nf-border);
+}
+
+/* Tablas: cabecera discreta y fila resaltada al pasar el cursor. */
+.mantine-Table-table {
+  --table-border-color: var(--nf-border);
+  --table-striped-color: rgba(255, 255, 255, 0.02);
+}
+
+.mantine-Table-th {
+  color: #8f95b2;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.mantine-Table-tbody .mantine-Table-tr {
+  transition: background-color 120ms ease-out;
+}
+
+.mantine-Table-tbody .mantine-Table-tr:hover {
+  background: rgba(124, 92, 255, 0.07);
+}
+
+.mantine-Tabs-tab[data-active] {
+  border-color: var(--nf-accent-a);
+  color: #fff;
+}
+
+@keyframes nf-beat {
+  50% { opacity: 0.35; transform: scale(0.8); }
+}
+
+/* Todo lo que se mueve lleva data-motion: aquí se detiene de una vez. */
+@media (prefers-reduced-motion: reduce) {
+  [data-motion],
+  [data-motion]::before,
+  [data-motion]::after,
+  [data-motion] *,
+  [data-motion] *::before,
+  [data-motion] *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* La inclinación la escribe JS en variables CSS: anular la transición no basta. */
+  [data-tilt] {
+    transform: none !important;
+  }
+}

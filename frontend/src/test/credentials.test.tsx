@@ -132,6 +132,62 @@ describe("credenciales", () => {
     expect(screen.queryByText(SECRET)).not.toBeInTheDocument();
   });
 
+  it("editar envía solo la descripción y los hosts", async () => {
+    let sent: unknown = null;
+    session(ADMIN_ME, {
+      "GET /api/v1/credentials": () => json([STORED]),
+      [`PATCH /api/v1/credentials/${STORED.id}`]: async (request) => {
+        sent = await request.json();
+        return json(STORED);
+      },
+    });
+    renderApp("/credentials");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Editar erp_token" }));
+    const dialog = await screen.findByRole("dialog");
+    await fill(user, within(dialog).getByLabelText(/Descripción/), "Token del ERP");
+    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(sent).toEqual({ description: "Token del ERP", allowed_hosts: ["api.erp.example"] }));
+  });
+
+  it("reemplazar el secreto lo envía y después no queda en la página", async () => {
+    let sent: unknown = null;
+    session(ADMIN_ME, {
+      "GET /api/v1/credentials": () => json([STORED]),
+      [`PUT /api/v1/credentials/${STORED.id}/secret`]: async (request) => {
+        sent = await request.json();
+        return json(STORED);
+      },
+    });
+    renderApp("/credentials");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Reemplazar secreto de erp_token" }));
+    const dialog = await screen.findByRole("dialog");
+    await fill(user, within(dialog).getByLabelText(/Token/), SECRET);
+    await user.click(within(dialog).getByRole("button", { name: "Reemplazar" }));
+    await waitFor(() => expect(sent).toEqual({ secret: { token: SECRET } }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(document.body.innerHTML).not.toContain(SECRET);
+  });
+
+  it("eliminar exige escribir el nombre y muestra el error si la API lo rechaza", async () => {
+    const api = session(ADMIN_ME, {
+      "GET /api/v1/credentials": () => json([STORED]),
+      [`DELETE /api/v1/credentials/${STORED.id}`]: () =>
+        json({ title: "Conflicto", status: 409, detail: "La usa el flujo Cobros.", request_id: "r7" }, 409),
+    });
+    renderApp("/credentials");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Eliminar erp_token" }));
+    const dialog = await screen.findByRole("dialog");
+    const confirm = within(dialog).getByRole("button", { name: "Eliminar" });
+    expect(confirm).toBeDisabled();
+    await fill(user, within(dialog).getByLabelText(/Escribe erp_token/), "erp_token");
+    await user.click(confirm);
+    expect(await within(dialog).findByText("La usa el flujo Cobros.")).toBeInTheDocument();
+    expect(api.calls.some((c) => c.method === "DELETE")).toBe(true);
+  });
+
   it("un viewer no ve la página ni el botón de crear", async () => {
     session(VIEWER_ME, { "GET /api/v1/credentials": () => json({ title: "Prohibido", status: 403 }, 403) });
     renderApp("/credentials");

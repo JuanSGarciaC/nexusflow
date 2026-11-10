@@ -138,12 +138,33 @@ demasiado ruidoso para umbrales ajustados.
 El umbral de **85 %** del backend (`fail_under = 85` en `pyproject.toml`) lo aplica
 `pytest --cov` en el CI: si baja, el job falla. Última medición completa en local, el 1 nov 2026 con las mejoras de portafolio
 integradas (373 pruebas, unitarias e integración contra PostgreSQL y Redis reales): **88,18 %**. El frontend
-tiene un **suelo** en `vite.config.ts` (72 % sentencias, 61 % ramas, 61 % funciones, 72 %
+tiene un **suelo** en `vite.config.ts` (80 % sentencias, 70 % ramas, 69 % funciones, 80 %
 líneas) que el CI aplica con `pnpm test:coverage`. Lo medido el 1 nov 2026 (35 pruebas) es
 74,2 % / 63,1 % / 63,6 % / 74,8 %, frente a 65,7 % / 56,7 % / 52 % / 66,7 % antes de añadir
 las pruebas de auditoría y credenciales (antes al 0 %, ahora 100 % y 96 % de sentencias).
-Siguen bajas las pantallas de ejecuciones y usuarios (≈54 % y 56 % de sentencias). El suelo
+Tras el rediseño del panel (9 nov 2026, 91 pruebas) lo medido es 82,6 % / 73,1 % / 71,8 % /
+82,9 %, y el suelo sube con ello. Siguen bajas las pantallas de ejecuciones y usuarios (≈54 % y 56 % de sentencias). El suelo
 solo impide retroceder.
+
+## Rediseño del panel: peso del frontend
+
+Tamaño gzip de los chunks que imprime `pnpm build`. El lienzo de flujos debe vivir en un
+chunk propio; el de entrada y el del panel de métricas no pueden crecer más de un 10 %.
+
+| Chunk | Inicial (9 nov 2026) | Final (9 nov 2026) | Cambio |
+|---|---|---|---|
+| Entrada (`index`) | 143,24 kB | 144,26 kB | +0,7 % |
+| `DashboardPage` | 120,01 kB | 115,89 kB | −3,4 % |
+| `WorkflowDetailPage` | 5,59 kB | 15,88 kB | +10,29 kB |
+| `RunDetailPage` | 4,29 kB | 4,75 kB | +0,46 kB |
+| `CredentialsPage` | 6,27 kB | 4,89 kB | −1,38 kB |
+| `WebhooksPage` (nuevo) | — | 6,81 kB | |
+| `FlowCanvas` (nuevo, bajo demanda) | — | 59,50 kB + 3,68 kB de CSS | |
+
+El lienzo (React Flow) solo se descarga al abrir un flujo o una ejecución: el panel de
+métricas, las listas y el login no lo piden. `WorkflowDetailPage` crece porque ahora incluye
+la pestaña de disparadores y el visor de versiones; `DashboardPage` baja porque Vite reparte
+de otra forma el código compartido. La hoja de estilos de entrada pasa a 39,52 kB.
 
 ## Reproducir
 

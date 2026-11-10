@@ -1,7 +1,7 @@
 import { Alert, Badge, Button, Group, JsonInput, Skeleton, Stack, Table, Tabs, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { api, isConflict, unwrap, type Schemas } from "../../api/client";
@@ -11,16 +11,42 @@ import { JsonView } from "../../components/JsonView";
 import { PageHeader } from "../../components/PageHeader";
 import { StatusBadge } from "../../components/StatusBadge";
 import { formatDate } from "../../lib/format";
+import type { CanvasTrigger } from "../canvas/FlowCanvas";
+import { DefinitionPreview } from "../canvas/LazyFlowCanvas";
 import { RunTable } from "../runs/RunTable";
 import { IssuesList } from "./IssuesList";
 import { SchedulesTab } from "./SchedulesTab";
 import { parseJson, pretty } from "./templates";
+import { TriggersTab, triggersQuery } from "./TriggersTab";
+import { VersionViewer } from "./VersionViewer";
 
 type DefinitionIn = Schemas["WorkflowDefinition-Input"];
 type Detail = Schemas["WorkflowDetail"];
 
+/** Todo lo que puede lanzar el flujo, para dibujarlo como nodos de entrada del lienzo. */
+function useCanvasTriggers(wf: Detail): CanvasTrigger[] {
+  const { can } = useAuth();
+  // Mismas claves que las pestañas: react-query reutiliza la respuesta, no hay peticiones duplicadas.
+  const schedules = useQuery({
+    queryKey: ["workflow", wf.id, "schedules"],
+    queryFn: () => unwrap(api.GET("/api/v1/workflows/{workflow_id}/schedules", { params: { path: { workflow_id: wf.id } } })),
+    enabled: can("schedules:manage"),
+  });
+  const hooks = useQuery({ ...triggersQuery(wf.id), enabled: can("webhooks:manage") });
+  const runnable = wf.status === "active" && wf.published !== null;
+  return useMemo(
+    () => [
+      ...(runnable ? [{ id: "manual", label: "Manual", kind: "manual" as const }] : []),
+      ...(schedules.data ?? []).filter((s) => s.is_active).map((s) => ({ id: s.id, label: s.name, kind: "cron" as const })),
+      ...(hooks.data ?? []).filter((t) => t.is_active).map((t) => ({ id: t.id, label: t.name, kind: "webhook" as const })),
+    ],
+    [runnable, schedules.data, hooks.data],
+  );
+}
+
 function DefinitionTab({ wf, canWrite }: { wf: Detail; canWrite: boolean }) {
   const queryClient = useQueryClient();
+  const triggers = useCanvasTriggers(wf);
   const draft = wf.draft;
   const base = draft ?? wf.published;
   const [text, setText] = useState(base ? pretty(base.definition) : "");
@@ -84,6 +110,7 @@ function DefinitionTab({ wf, canWrite }: { wf: Detail; canWrite: boolean }) {
           </Button>
         </Alert>
       )}
+      <DefinitionPreview text={text} triggers={triggers} height={380} />
       <JsonInput
         aria-label="Definición del flujo"
         autosize
@@ -123,6 +150,7 @@ function DefinitionTab({ wf, canWrite }: { wf: Detail; canWrite: boolean }) {
 }
 
 function VersionsTab({ workflowId }: { workflowId: string }) {
+  const [viewing, setViewing] = useState<number | null>(null);
   const versions = useQuery({
     queryKey: ["workflow", workflowId, "versions"],
     queryFn: () => unwrap(api.GET("/api/v1/workflows/{workflow_id}/versions", { params: { path: { workflow_id: workflowId } } })),
@@ -138,6 +166,7 @@ function VersionsTab({ workflowId }: { workflowId: string }) {
             <Table.Th>Revisión</Table.Th>
             <Table.Th>Publicada</Table.Th>
             <Table.Th>Hash</Table.Th>
+            <Table.Th />
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -154,10 +183,16 @@ function VersionsTab({ workflowId }: { workflowId: string }) {
                   {v.definition_hash.slice(0, 12)}
                 </Text>
               </Table.Td>
+              <Table.Td ta="right">
+                <Button size="compact-xs" variant={viewing === v.version ? "light" : "subtle"} aria-label={`Abrir versión ${v.version}`} onClick={() => setViewing(v.version)}>
+                  Ver
+                </Button>
+              </Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
       </Table>
+      {viewing !== null && <VersionViewer workflowId={workflowId} version={viewing} />}
     </>
   );
 }
@@ -245,6 +280,7 @@ export function WorkflowDetailPage() {
           {can("workflows:execute") && w.status === "active" && <Tabs.Tab value="run">Ejecutar</Tabs.Tab>}
           <Tabs.Tab value="runs">Ejecuciones</Tabs.Tab>
           {can("schedules:manage") && <Tabs.Tab value="schedules">Programaciones</Tabs.Tab>}
+          {can("webhooks:manage") && <Tabs.Tab value="triggers">Disparadores</Tabs.Tab>}
           {w.published && <Tabs.Tab value="published">Publicada</Tabs.Tab>}
         </Tabs.List>
         <Tabs.Panel value="definition">
@@ -263,6 +299,9 @@ export function WorkflowDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="schedules">
           <SchedulesTab workflowId={w.id} canRun={w.status === "active"} />
+        </Tabs.Panel>
+        <Tabs.Panel value="triggers">
+          <TriggersTab workflowId={w.id} />
         </Tabs.Panel>
         <Tabs.Panel value="published">{w.published && <JsonView value={w.published.definition} maxHeight={600} />}</Tabs.Panel>
       </Tabs>
