@@ -10,12 +10,6 @@ en segundo plano con reintentos, timeouts e idempotencia.
 
 ![Demo de NexusFlow: reintentos ante 503, idempotencia, webhook firmado y deduplicado, permisos y auditoría](docs/demo/nexusflow-demo.gif)
 
-*Demo de 50 s grabada contra el stack real con datos ficticios: la pasarela responde 503 dos
-veces y el motor reintenta con la misma `Idempotency-Key`; repetir con la misma clave no crea
-otra ejecución; un webhook con firma incorrecta da 401 y el reenvío del mismo evento se
-deduplica; un viewer no puede ejecutar; credenciales sin secreto a la vista y auditoría.
-Guion completo para presentarla en [docs/demo.md](docs/demo.md).*
-
 > **Estado del proyecto:** se está construyendo por fases verificables.
 > **Fases 1 a 11 completadas y revisadas:** fundaciones, autenticación y RBAC, definición
 > de flujos, motor de ejecución, credenciales cifradas, webhooks firmados, métricas y
