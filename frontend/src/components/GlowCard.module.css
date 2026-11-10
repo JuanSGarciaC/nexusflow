@@ -1,0 +1,69 @@
+/* @property permite animar el ángulo del degradado cónico (un número no interpolable sin tipo). */
+@property --angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.card {
+  position: relative;
+  isolation: isolate;
+  background: var(--nf-surface);
+  border: 1px solid var(--nf-border);
+  box-shadow: var(--nf-shadow);
+  backdrop-filter: blur(14px);
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 180ms ease-out;
+}
+
+/* Borde: un degradado cónico recortado al grosor del borde con una máscara. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--angle),
+    transparent 0 55%,
+    var(--nf-accent-a) 70%,
+    var(--nf-accent-b) 82%,
+    var(--nf-accent-c) 90%,
+    transparent 100%
+  );
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.card[data-spin]::before {
+  animation: spin var(--nf-dur-spin) linear infinite;
+}
+
+.card:hover::before {
+  opacity: 1;
+}
+
+/* Foco del cursor. Fuera de la tarjeta queda oculto. */
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, -40%), var(--nf-glow), transparent 70%);
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+  pointer-events: none;
+}
+
+.card:hover::after {
+  opacity: 1;
+}
+
+@keyframes spin {
+  to {
+    --angle: 360deg;
+  }
+}
