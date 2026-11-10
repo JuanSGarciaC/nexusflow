@@ -10,7 +10,6 @@ en segundo plano con reintentos, timeouts e idempotencia.
 
 ![Demo de NexusFlow: reintentos ante 503, idempotencia, webhook firmado y deduplicado, permisos y auditoría](docs/demo/nexusflow-demo.gif)
 
-
 ## Contenido
 
 - [Capturas](#capturas) · [guion de la demo](docs/demo.md)
