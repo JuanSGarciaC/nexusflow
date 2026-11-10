@@ -17,6 +17,8 @@ export const theme = createTheme({
   primaryShade: 4,
   colors: { nexus },
   defaultRadius: "md",
+  // Modales, cajones, acordeones y esqueletos de Mantine dejan de animarse con prefers-reduced-motion.
+  respectReducedMotion: true,
   // Pila del sistema: una fuente autohospedada no compensaba su peso (ver ADR-0013).
   fontFamily: '"Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif',
   headings: { fontFamily: '"Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif', fontWeight: "650" },

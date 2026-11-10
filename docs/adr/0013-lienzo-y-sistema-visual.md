@@ -58,7 +58,8 @@ reserva para lo que debe destacar: cifras del panel, login y tablas principales.
 - El foco del cursor se escribe en variables CSS, no en estado de React: no hay un render
   por cada movimiento.
 - Todo lo que se mueve lleva `data-motion`; una sola regla lo detiene con
-  `prefers-reduced-motion`.
+  `prefers-reduced-motion`, y una prueba E2E lo comprueba emulando esa preferencia (las
+  unitarias corren sin CSS y no lo verían).
 - Fuente: la pila del sistema. Una fuente autohospedada (la CSP no permite CDN) no
   compensaba su peso.
 
