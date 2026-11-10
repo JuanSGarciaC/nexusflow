@@ -11,10 +11,12 @@ import { JsonView } from "../../components/JsonView";
 import { PageHeader } from "../../components/PageHeader";
 import { StatusBadge } from "../../components/StatusBadge";
 import { formatDate } from "../../lib/format";
+import { DefinitionPreview } from "../canvas/LazyFlowCanvas";
 import { RunTable } from "../runs/RunTable";
 import { IssuesList } from "./IssuesList";
 import { SchedulesTab } from "./SchedulesTab";
 import { parseJson, pretty } from "./templates";
+import { VersionViewer } from "./VersionViewer";
 
 type DefinitionIn = Schemas["WorkflowDefinition-Input"];
 type Detail = Schemas["WorkflowDetail"];
@@ -84,6 +86,7 @@ function DefinitionTab({ wf, canWrite }: { wf: Detail; canWrite: boolean }) {
           </Button>
         </Alert>
       )}
+      <DefinitionPreview text={text} height={380} />
       <JsonInput
         aria-label="Definición del flujo"
         autosize
@@ -123,6 +126,7 @@ function DefinitionTab({ wf, canWrite }: { wf: Detail; canWrite: boolean }) {
 }
 
 function VersionsTab({ workflowId }: { workflowId: string }) {
+  const [viewing, setViewing] = useState<number | null>(null);
   const versions = useQuery({
     queryKey: ["workflow", workflowId, "versions"],
     queryFn: () => unwrap(api.GET("/api/v1/workflows/{workflow_id}/versions", { params: { path: { workflow_id: workflowId } } })),
@@ -138,6 +142,7 @@ function VersionsTab({ workflowId }: { workflowId: string }) {
             <Table.Th>Revisión</Table.Th>
             <Table.Th>Publicada</Table.Th>
             <Table.Th>Hash</Table.Th>
+            <Table.Th />
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -154,10 +159,16 @@ function VersionsTab({ workflowId }: { workflowId: string }) {
                   {v.definition_hash.slice(0, 12)}
                 </Text>
               </Table.Td>
+              <Table.Td ta="right">
+                <Button size="compact-xs" variant={viewing === v.version ? "light" : "subtle"} aria-label={`Ver v${v.version}`} onClick={() => setViewing(v.version)}>
+                  Ver
+                </Button>
+              </Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
       </Table>
+      {viewing !== null && <VersionViewer workflowId={workflowId} version={viewing} />}
     </>
   );
 }

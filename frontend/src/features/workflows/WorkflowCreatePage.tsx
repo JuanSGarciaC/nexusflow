@@ -7,6 +7,7 @@ import { api, unwrap, type Schemas } from "../../api/client";
 import { RequirePermission } from "../../auth/RequirePermission";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { PageHeader } from "../../components/PageHeader";
+import { DefinitionPreview } from "../canvas/LazyFlowCanvas";
 import { IssuesList } from "./IssuesList";
 import { TEMPLATES, parseJson, pretty } from "./templates";
 
@@ -54,6 +55,7 @@ export function WorkflowCreatePage() {
             setIssues(undefined);
           }}
         />
+        <DefinitionPreview text={text} height={300} />
         <JsonInput
           label="Definición (JSON)"
           description="Ver docs/workflow-dsl.md"
