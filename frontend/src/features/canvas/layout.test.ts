@@ -5,7 +5,7 @@ import { connectedPath, layoutFlow, type FlowDefinition } from "./layout";
 type AnyStep = FlowDefinition["steps"][number];
 
 const t = (id: string, next?: string) =>
-  ({ id, type: "transform", config: { output: { ok: true } }, next: next ?? null }) as AnyStep;
+  ({ id, type: "transform", config: { output: { ok: true } }, next: next ?? null }) as unknown as AnyStep;
 const cond = (id: string, on_true?: string, on_false?: string) =>
   ({
     id,
@@ -13,8 +13,8 @@ const cond = (id: string, on_true?: string, on_false?: string) =>
     config: { when: { field: "input.x", op: "eq", value: 1 } },
     on_true: on_true ?? null,
     on_false: on_false ?? null,
-  }) as AnyStep;
-const def = (start: string, steps: AnyStep[]) => ({ schema_version: 1, start, steps, inputs: {} }) as FlowDefinition;
+  }) as unknown as AnyStep;
+const def = (start: string, steps: AnyStep[]) => ({ schema_version: 1, start, steps, inputs: [] }) as unknown as FlowDefinition;
 
 test("cadena lineal: un nivel por paso", () => {
   const { nodes, edges } = layoutFlow(def("a", [t("a", "b"), t("b", "c"), t("c")]));
@@ -63,7 +63,7 @@ test("JSON a medio escribir (sin steps, pasos sin id): no lanza", () => {
 });
 
 test("el nombre del paso es la etiqueta cuando existe", () => {
-  const step = { ...t("a"), name: "Calcular total" } as AnyStep;
+  const step = { ...t("a"), name: "Calcular total" } as unknown as AnyStep;
   expect(layoutFlow(def("a", [step])).nodes[0]?.label).toBe("Calcular total");
 });
 

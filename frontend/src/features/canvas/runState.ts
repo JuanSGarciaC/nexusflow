@@ -14,7 +14,7 @@ export interface NodeRun {
 
 function errorText(error: StepView["error"]): string | null {
   if (!error) return null;
-  const text = error.message ?? error.detail ?? error.error_class;
+  const text = error.message ?? error.class;
   return typeof text === "string" ? text : null;
 }
 

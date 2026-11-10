@@ -18,14 +18,14 @@ test("nodeRuns copia estado e intentos y calcula la duración", () => {
       attempt_count: 3,
       started_at: "2026-11-09T10:00:00Z",
       finished_at: "2026-11-09T10:00:01.500Z",
-      error: { error_class: "http_503", message: "Service Unavailable" },
+      error: { class: "http_503", message: "Service Unavailable" },
     }),
   ]);
   expect(runs.get("a")).toEqual({ status: "failed", attempts: 3, maxAttempts: 3, error: "Service Unavailable", durationMs: 1500 });
 });
 
 test("sin inicio o sin fin la duración es null, y el error sin mensaje usa su clase", () => {
-  const runs = nodeRuns([step("a", "running", { started_at: "2026-11-09T10:00:00Z", error: { error_class: "timeout" } })]);
+  const runs = nodeRuns([step("a", "running", { started_at: "2026-11-09T10:00:00Z", error: { class: "timeout" } })]);
   expect(runs.get("a")).toMatchObject({ durationMs: null, error: "timeout" });
 });
 
