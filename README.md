@@ -16,16 +16,6 @@ otra ejecución; un webhook con firma incorrecta da 401 y el reenvío del mismo 
 deduplica; un viewer no puede ejecutar; credenciales sin secreto a la vista y auditoría.
 Guion completo para presentarla en [docs/demo.md](docs/demo.md).*
 
-> **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fases 1 a 11 completadas y revisadas:** fundaciones, autenticación y RBAC, definición
-> de flujos, motor de ejecución, credenciales cifradas, webhooks firmados, métricas y
-> auditoría, panel web, E2E con datos de demostración y guía de despliegue, programaciones
-> cron y rediseño del panel con lienzo de flujos. La revisión de
-> seguridad ([OWASP API Top 10](docs/security-review.md)) y la de rendimiento
-> ([mediciones](docs/performance.md)) están documentadas con sus pruebas.
-> Esta documentación describe solo lo que ya existe y está probado. Lo pendiente aparece en la
-> [hoja de ruta](#hoja-de-ruta).
-
 ## Contenido
 
 - [Capturas](#capturas) · [guion de la demo](docs/demo.md)
