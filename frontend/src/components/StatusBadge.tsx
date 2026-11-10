@@ -13,9 +13,13 @@ const COLORS: Record<string, string> = {
   published: "green",
   active: "green",
   archived: "dark",
+  delivering: "blue",
   delivered: "green",
   dead: "red",
 };
+
+// Estados en los que algo está ocurriendo ahora mismo: su punto late.
+const LIVE = new Set(["running", "delivering", "retry_scheduled"]);
 
 const LABELS: Record<string, string> = {
   pending: "Pendiente",
@@ -30,6 +34,9 @@ const LABELS: Record<string, string> = {
   published: "Publicada",
   active: "Activo",
   archived: "Archivado",
+  delivering: "Entregando",
+  delivered: "Entregada",
+  dead: "Agotada",
 };
 
 export function statusLabel(status: string): string {
@@ -38,7 +45,12 @@ export function statusLabel(status: string): string {
 
 export function StatusBadge({ status }: { status: string }) {
   return (
-    <Badge color={COLORS[status] ?? "gray"} variant="light" data-status={status}>
+    <Badge
+      color={COLORS[status] ?? "gray"}
+      variant="light"
+      data-status={status}
+      leftSection={<span className="nf-status-dot" data-motion={LIVE.has(status) ? "" : undefined} aria-hidden />}
+    >
       {statusLabel(status)}
     </Badge>
   );
