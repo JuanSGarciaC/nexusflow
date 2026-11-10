@@ -31,11 +31,11 @@ export function AppLayout() {
 
   return (
     <AppShell header={{ height: 56 }} navbar={{ width: 230, breakpoint: "sm", collapsed: { mobile: !opened } }} padding="lg">
-      <AppShell.Header>
+      <AppShell.Header className="nf-glass">
         <Group h="100%" px="md" justify="space-between">
           <Group gap="sm">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Abrir menú" />
-            <Title order={4}>NexusFlow</Title>
+            <Title order={4} className="nf-gradient-text">NexusFlow</Title>
           </Group>
           {user && (
             <Group gap="sm">
@@ -49,7 +49,7 @@ export function AppLayout() {
           )}
         </Group>
       </AppShell.Header>
-      <AppShell.Navbar p="sm" aria-label="Navegación principal">
+      <AppShell.Navbar p="sm" aria-label="Navegación principal" className="nf-glass">
         <Stack gap={2}>
           {NAV.filter((item) => can(item.permission)).map((item) => {
             const active =
@@ -62,6 +62,8 @@ export function AppLayout() {
                 label={item.label}
                 leftSection={<item.icon size={18} />}
                 active={active}
+                className="nf-nav"
+                variant="subtle"
                 onClick={close}
               />
             );
