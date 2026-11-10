@@ -145,6 +145,19 @@ las pruebas de auditoría y credenciales (antes al 0 %, ahora 100 % y 96 % de se
 Siguen bajas las pantallas de ejecuciones y usuarios (≈54 % y 56 % de sentencias). El suelo
 solo impide retroceder.
 
+## Rediseño del panel: peso del frontend
+
+Tamaño gzip de los chunks que imprime `pnpm build`. El lienzo de flujos debe vivir en un
+chunk propio; el de entrada y el del panel de métricas no pueden crecer más de un 10 %.
+
+| Chunk | Inicial (9 nov 2026) |
+|---|---|
+| Entrada (`index`) | 143,24 kB |
+| `DashboardPage` | 120,01 kB |
+| `WorkflowDetailPage` | 5,59 kB |
+| `RunDetailPage` | 4,29 kB |
+| `CredentialsPage` | 6,27 kB |
+
 ## Reproducir
 
 ```bash

@@ -1,0 +1,52 @@
+/* Fondo fijo: dos degradados radiales tenues sobre una retícula de 32 px. */
+body {
+  background-color: var(--nf-bg);
+  background-image:
+    radial-gradient(900px 500px at 12% -10%, rgba(124, 92, 255, 0.16), transparent 60%),
+    radial-gradient(800px 480px at 95% 8%, rgba(34, 211, 238, 0.1), transparent 60%),
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px, 32px 32px;
+  background-attachment: fixed;
+}
+
+.nf-gradient-text {
+  background: var(--nf-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.nf-glass {
+  background: var(--nf-surface);
+  backdrop-filter: blur(14px);
+  border-color: var(--nf-border);
+}
+
+/* Enlace activo de la navegación: barra de acento con brillo. */
+.nf-nav[data-active] {
+  background: linear-gradient(90deg, rgba(124, 92, 255, 0.22), transparent);
+  box-shadow: inset 2px 0 0 var(--nf-accent-a), -6px 0 18px -8px var(--nf-accent-a);
+  color: #fff;
+}
+
+.nf-header-line {
+  height: 1px;
+  background: linear-gradient(90deg, var(--nf-accent-a), var(--nf-accent-b) 40%, transparent 80%);
+  opacity: 0.6;
+}
+
+@keyframes nf-beat {
+  50% { opacity: 0.35; transform: scale(0.8); }
+}
+
+/* Todo lo que se mueve lleva data-motion: aquí se detiene de una vez. */
+@media (prefers-reduced-motion: reduce) {
+  [data-motion],
+  [data-motion]::before,
+  [data-motion]::after,
+  [data-motion] * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
