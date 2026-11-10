@@ -184,7 +184,7 @@ function VersionsTab({ workflowId }: { workflowId: string }) {
                 </Text>
               </Table.Td>
               <Table.Td ta="right">
-                <Button size="compact-xs" variant={viewing === v.version ? "light" : "subtle"} aria-label={`Ver v${v.version}`} onClick={() => setViewing(v.version)}>
+                <Button size="compact-xs" variant={viewing === v.version ? "light" : "subtle"} aria-label={`Abrir versión ${v.version}`} onClick={() => setViewing(v.version)}>
                   Ver
                 </Button>
               </Table.Td>

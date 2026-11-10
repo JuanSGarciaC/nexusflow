@@ -136,3 +136,54 @@ test("el operador no ve la pestaña de programaciones", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Definición" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Programaciones" })).toHaveCount(0);
 });
+
+test("operador reejecuta una ejecución fallida y llega a la ejecución nueva", async ({ page }) => {
+  await loginAs(page, "operator", "/workflows");
+  await page.getByRole("link", { name: "Demo · Cobro a cliente VIP" }).click();
+  // La prueba crea su propio fallo (cliente inexistente → 404): no depende de cuántas
+  // ejecuciones haya sembrado seed-demo.
+  await page.getByRole("tab", { name: "Ejecutar" }).click();
+  await page.getByLabel("Entrada (JSON)").fill(JSON.stringify({ customer_id: "c-999", amount: 10 }));
+  await page.getByRole("button", { name: "Ejecutar", exact: true }).click();
+  await expect(page).toHaveURL(/\/runs\//);
+  await expect(page.locator("[data-status=failed]").first()).toBeVisible({ timeout: 30_000 });
+  const original = page.url();
+  // El lienzo dibuja la versión que se ejecutó, con el paso que falló.
+  await expect(page.getByTestId("flow-canvas")).toBeVisible();
+  await page.getByRole("button", { name: "Reejecutar" }).click();
+  await expect(page).not.toHaveURL(original);
+  await expect(page).toHaveURL(/\/runs\//);
+  // Misma entrada (cliente inexistente): la ejecución nueva vuelve a fallar, sin duplicar la anterior.
+  await expect(page.locator("[data-status=failed]").first()).toBeVisible({ timeout: 30_000 });
+});
+
+test("editor crea una suscripción de webhook, hace ping y ve la entrega", async ({ page }) => {
+  await loginAs(page, "editor", "/webhooks");
+  const name = `E2E hook ${Date.now()}`;
+  await page.getByRole("button", { name: "Nueva suscripción" }).click();
+  await page.getByLabel("Nombre").fill(name);
+  await page.getByLabel("URL de destino").fill("http://mock-partner:8080/webhooks/nexusflow");
+  await page.getByRole("button", { name: "Crear", exact: true }).click();
+
+  // El secreto se muestra una sola vez.
+  const secret = page.getByRole("dialog", { name: "Secreto de la suscripción" });
+  await expect(secret.getByText("No se volverá a mostrar")).toBeVisible();
+  await secret.getByRole("button", { name: "Ya lo copié" }).click();
+  await expect(secret).toBeHidden();
+
+  await page.getByRole("button", { name: `Enviar ping a ${name}` }).click();
+  await expect(page.getByText("Ping encolado")).toBeVisible();
+  await page.getByRole("button", { name: `Entregas de ${name}` }).click();
+  // El worker entrega en segundo plano: el cajón se refresca solo hasta que aparece.
+  await expect(page.getByRole("dialog").getByRole("cell", { name: /ping/ })).toBeVisible({ timeout: 30_000 });
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: `Eliminar ${name}` }).click();
+  await expect(page.getByText(name)).toHaveCount(0);
+});
+
+test("un viewer no llega a los webhooks ni forzando la URL", async ({ page }) => {
+  await loginAs(page, "viewer", "/webhooks");
+  await expect(page.getByText("Sin acceso")).toBeVisible();
+  await expect(nav(page).getByText("Webhooks")).toHaveCount(0);
+});

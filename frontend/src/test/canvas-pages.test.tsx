@@ -124,7 +124,7 @@ describe("lienzo en flujos", () => {
     renderApp(`/workflows/${WF_ID}`);
     const user = userEvent.setup();
     await user.click(await screen.findByRole("tab", { name: "Versiones" }));
-    await user.click(await screen.findByRole("button", { name: "Ver v1" }));
+    await user.click(await screen.findByRole("button", { name: "Abrir versión 1" }));
     expect(await screen.findByRole("button", { name: "Paso viejo" })).toBeInTheDocument();
     expect(api.calls.some((c) => c.path === `/api/v1/workflows/${WF_ID}/versions/1`)).toBe(true);
     expect(screen.getByRole("heading", { name: "Versión 1" })).toBeInTheDocument();
@@ -185,6 +185,23 @@ describe("lienzo y reejecución en el detalle de ejecución", () => {
     await user.click(await screen.findByRole("button", { name: "Reejecutar" }));
     expect(await screen.findByText("El flujo está archivado.")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe(`/runs/${RUN_ID}`);
+  });
+
+  it("un paso abierto no se cierra solo cuando termina mientras se observa la ejecución", async () => {
+    let status = "retry_scheduled";
+    loggedInAs(ADMIN_ME, {
+      [`GET /api/v1/runs/${RUN_ID}`]: () => {
+        const r = run(status === "succeeded" ? "succeeded" : "running");
+        return json({ ...r, steps: r.steps.map((s) => ({ ...s, status })) });
+      },
+    });
+    const { queryClient } = renderApp(`/runs/${RUN_ID}`);
+    const control = await screen.findByRole("button", { name: /1\. viejo/ });
+    expect(control).toHaveAttribute("aria-expanded", "true");
+    status = "succeeded";
+    await queryClient.invalidateQueries({ queryKey: ["run", RUN_ID] });
+    await screen.findByRole("button", { name: "Reejecutar" });
+    expect(screen.getByRole("button", { name: /1\. viejo/ })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("no ofrece Reejecutar mientras la ejecución sigue activa", async () => {

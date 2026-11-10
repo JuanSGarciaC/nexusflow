@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { loginAs } from "./helpers";
 
 test.skip(!process.env.CAPTURE_SCREENSHOTS, "Solo para regenerar las capturas del README");
-test.use({ viewport: { width: 1360, height: 820 }, colorScheme: "light" });
+test.use({ viewport: { width: 1360, height: 820 }, colorScheme: "dark" });
 
 const OUT = fileURLToPath(new URL("../../docs/screenshots", import.meta.url));
 const shot = (name: string) => ({ path: path.join(OUT, `${name}.png`), animations: "disabled" as const });
@@ -51,7 +51,7 @@ test("capturas del panel", async ({ page }) => {
   };
   await openVipRun("Completada");
   await expect(page.locator("[data-status=succeeded]").first()).toBeVisible();
-  await page.getByRole("button", { name: /charge/ }).click();
+  await page.getByRole("button", { name: /^\d+\. charge/ }).click();
   await page.waitForTimeout(800);
   await page.screenshot({ ...shot("06-detalle-ejecucion"), fullPage: true });
 
@@ -60,6 +60,11 @@ test("capturas del panel", async ({ page }) => {
   await expect(page.locator("[data-status=failed]").first()).toBeVisible();
   await page.waitForTimeout(500);
   await page.screenshot({ ...shot("07-ejecucion-fallida"), fullPage: true });
+
+  await page.goto("/webhooks");
+  await expect(page.getByRole("heading", { name: "Webhooks" })).toBeVisible();
+  await page.waitForTimeout(500);
+  await page.screenshot(shot("11-webhooks"));
 
   await page.goto("/credentials");
   await expect(page.getByText("demo_crm")).toBeVisible();

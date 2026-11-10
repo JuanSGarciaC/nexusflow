@@ -117,7 +117,7 @@ describe("disparadores de un flujo", () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole("tab", { name: "Disparadores" }));
     await user.click(await screen.findByRole("button", { name: "Nuevo disparador" }));
-    await user.type(screen.getByLabelText(/Nombre/), "Pedidos ERP");
+    await user.type(await screen.findByLabelText(/Nombre/), "Pedidos ERP");
     await user.click(screen.getByRole("button", { name: "Crear" }));
 
     const dialog = await screen.findByRole("dialog", { name: /Secreto/ });

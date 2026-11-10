@@ -49,6 +49,7 @@ export function StatusBadge({ status }: { status: string }) {
       color={COLORS[status] ?? "gray"}
       variant="light"
       data-status={status}
+      style={{ flexShrink: 0, minWidth: "max-content" }}
       leftSection={<span className="nf-status-dot" data-motion={LIVE.has(status) ? "" : undefined} aria-hidden />}
     >
       {statusLabel(status)}

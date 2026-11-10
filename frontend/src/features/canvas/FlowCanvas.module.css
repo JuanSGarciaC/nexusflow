@@ -85,36 +85,36 @@
 }
 
 /* Modo ejecución: el borde toma el color del estado. */
-.node[data-status] {
+.node[data-run] {
   border-color: var(--tone);
 }
-.node[data-status="succeeded"] {
+.node[data-run="succeeded"] {
   --tone: var(--nf-ok);
 }
-.node[data-status="failed"] {
+.node[data-run="failed"] {
   --tone: var(--nf-fail);
   box-shadow: 0 0 28px -8px var(--nf-fail);
 }
-.node[data-status="running"] {
+.node[data-run="running"] {
   --tone: var(--nf-run);
 }
-.node[data-status="retry_scheduled"],
-.node[data-status="needs_review"] {
+.node[data-run="retry_scheduled"],
+.node[data-run="needs_review"] {
   --tone: var(--nf-warn);
 }
-.node[data-status="pending"],
-.node[data-status="cancelled"] {
+.node[data-run="pending"],
+.node[data-run="cancelled"] {
   --tone: var(--nf-idle);
 }
-.node[data-status="skipped"] {
+.node[data-run="skipped"] {
   --tone: var(--nf-idle);
   opacity: 0.35;
   border-color: var(--nf-border);
 }
 
 /* Halo que late en el paso en curso o esperando reintento. Solo transform y opacity. */
-.node[data-status="running"]::after,
-.node[data-status="retry_scheduled"]::after {
+.node[data-run="running"]::after,
+.node[data-run="retry_scheduled"]::after {
   content: "";
   position: absolute;
   inset: -5px;
