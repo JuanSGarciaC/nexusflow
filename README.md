@@ -10,16 +10,6 @@ en segundo plano con reintentos, timeouts e idempotencia.
 
 ![Demo de NexusFlow: reintentos ante 503, idempotencia, webhook firmado y deduplicado, permisos y auditoría](docs/demo/nexusflow-demo.gif)
 
-> **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fases 1 a 11 completadas y revisadas:** fundaciones, autenticación y RBAC, definición
-> de flujos, motor de ejecución, credenciales cifradas, webhooks firmados, métricas y
-> auditoría, panel web, E2E con datos de demostración y guía de despliegue, programaciones
-> cron y rediseño del panel con lienzo de flujos. La revisión de
-> seguridad ([OWASP API Top 10](docs/security-review.md)) y la de rendimiento
-> ([mediciones](docs/performance.md)) están documentadas con sus pruebas.
-> Esta documentación describe solo lo que ya existe y está probado. Lo pendiente aparece en la
-> [hoja de ruta](#hoja-de-ruta).
-
 ## Contenido
 
 - [Capturas](#capturas) · [guion de la demo](docs/demo.md)
