@@ -36,6 +36,89 @@ body {
   opacity: 0.6;
 }
 
+/* Punto de estado de StatusBadge: hereda el color del texto de la insignia. */
+.nf-status-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.nf-status-dot[data-motion] {
+  animation: nf-beat var(--nf-dur-pulse) ease-in-out infinite;
+}
+
+/* Superficies de Mantine con el mismo vidrio que GlowCard, sin tocar cada pantalla.
+   Las clases mantine-* son API pública y estable de Mantine. */
+.mantine-Card-root,
+.mantine-Accordion-item,
+.mantine-Modal-content,
+.mantine-Drawer-content,
+.mantine-Menu-dropdown,
+.mantine-Popover-dropdown {
+  background: var(--nf-surface);
+  border-color: var(--nf-border);
+  box-shadow: var(--nf-shadow);
+  backdrop-filter: blur(14px);
+}
+
+.mantine-Modal-content,
+.mantine-Drawer-content,
+.mantine-Menu-dropdown,
+.mantine-Popover-dropdown {
+  background: var(--nf-surface-solid);
+}
+
+.mantine-Modal-header,
+.mantine-Drawer-header {
+  background: transparent;
+}
+
+.mantine-Input-input {
+  background: rgba(10, 11, 18, 0.7);
+  border-color: var(--nf-border);
+}
+
+.mantine-Input-input:focus,
+.mantine-Input-input:focus-within {
+  border-color: var(--nf-accent-a);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.18);
+}
+
+.mantine-Code-root {
+  background: #05060a;
+  border: 1px solid var(--nf-border);
+}
+
+/* Tablas: cabecera discreta y fila resaltada al pasar el cursor. */
+.mantine-Table-table {
+  --table-border-color: var(--nf-border);
+  --table-striped-color: rgba(255, 255, 255, 0.02);
+}
+
+.mantine-Table-th {
+  color: #8f95b2;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.mantine-Table-tbody .mantine-Table-tr {
+  transition: background-color 120ms ease-out;
+}
+
+.mantine-Table-tbody .mantine-Table-tr:hover {
+  background: rgba(124, 92, 255, 0.07);
+}
+
+.mantine-Tabs-tab[data-active] {
+  border-color: var(--nf-accent-a);
+  color: #fff;
+}
+
 @keyframes nf-beat {
   50% { opacity: 0.35; transform: scale(0.8); }
 }
