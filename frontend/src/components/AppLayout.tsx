@@ -9,6 +9,7 @@ import {
   IconRoute,
   IconShieldCheck,
   IconUsers,
+  IconWebhook,
 } from "@tabler/icons-react";
 import { NavLink as RouterLink, Outlet, useLocation } from "react-router";
 
@@ -18,6 +19,7 @@ const NAV = [
   { to: "/", label: "Panel", icon: IconChartBar, permission: "metrics:read", exact: true },
   { to: "/workflows", label: "Flujos", icon: IconRoute, permission: "workflows:read" },
   { to: "/runs", label: "Ejecuciones", icon: IconHistory, permission: "runs:read" },
+  { to: "/webhooks", label: "Webhooks", icon: IconWebhook, permission: "webhooks:manage" },
   { to: "/credentials", label: "Credenciales", icon: IconKey, permission: "credentials:manage" },
   { to: "/audit", label: "Auditoría", icon: IconShieldCheck, permission: "audit:read" },
   { to: "/users", label: "Usuarios", icon: IconUsers, permission: "users:read" },

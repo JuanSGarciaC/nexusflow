@@ -12,6 +12,7 @@ const DashboardPage = lazy(() => import("./features/dashboard/DashboardPage").th
 const RunDetailPage = lazy(() => import("./features/runs/RunDetailPage").then((m) => ({ default: m.RunDetailPage })));
 const RunListPage = lazy(() => import("./features/runs/RunListPage").then((m) => ({ default: m.RunListPage })));
 const UsersPage = lazy(() => import("./features/users/UsersPage").then((m) => ({ default: m.UsersPage })));
+const WebhooksPage = lazy(() => import("./features/webhooks/WebhooksPage").then((m) => ({ default: m.WebhooksPage })));
 const WorkflowCreatePage = lazy(() => import("./features/workflows/WorkflowCreatePage").then((m) => ({ default: m.WorkflowCreatePage })));
 const WorkflowDetailPage = lazy(() => import("./features/workflows/WorkflowDetailPage").then((m) => ({ default: m.WorkflowDetailPage })));
 const WorkflowListPage = lazy(() => import("./features/workflows/WorkflowListPage").then((m) => ({ default: m.WorkflowListPage })));
@@ -37,6 +38,7 @@ export const routes = [
       { path: "workflows/:workflowId", element: <WorkflowDetailPage /> },
       { path: "runs", element: <RunListPage /> },
       { path: "runs/:runId", element: <RunDetailPage /> },
+      { path: "webhooks", element: <WebhooksPage /> },
       { path: "credentials", element: <CredentialsPage /> },
       { path: "audit", element: <AuditPage /> },
       { path: "users", element: <UsersPage /> },
