@@ -152,7 +152,8 @@ export function RunDetailPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [resolving, setResolving] = useState<Step | null>(null);
-  // null = aún no se ha tocado el acordeón: se abren los pasos que no terminaron bien.
+  // Pasos abiertos del acordeón. null hasta que llega la ejecución; entonces se abren los que
+  // no terminaron bien y ya no cambia solo: un paso que se está leyendo no se cierra al terminar.
   const [opened, setOpened] = useState<string[] | null>(null);
   const run = useQuery({
     queryKey: ["run", runId],
@@ -186,9 +187,10 @@ export function RunDetailPage() {
   if (run.error) return <ErrorAlert error={run.error} />;
   if (!run.data) return <Skeleton h={400} />;
   const r = run.data;
+  if (opened === null) setOpened(r.steps.filter((s) => s.status !== "succeeded").map((s) => s.id));
   const cancellable = ["pending", "running", "needs_review"].includes(r.status);
   const canExecute = can("workflows:execute");
-  const openSteps = opened ?? r.steps.filter((s) => s.status !== "succeeded").map((s) => s.id);
+  const openSteps = opened ?? [];
   const showStep = (stepId: string) => {
     const step = r.steps.find((s) => s.step_id === stepId);
     if (!step) return;

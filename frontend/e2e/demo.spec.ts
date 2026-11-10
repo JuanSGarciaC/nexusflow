@@ -81,7 +81,7 @@ test("demo del README", async ({ page, request }) => {
   await caption(page, "Cobro a un cliente VIP: la pasarela simulada responde 503 las dos primeras veces.", 1800);
   const firstRun = await runVip(page, key);
   await expect(page.locator("[data-status=succeeded]").first()).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: /charge/ }).click();
+  await page.getByRole("button", { name: /^\d+\. charge/ }).click();
   await page.waitForTimeout(400);
   // La tabla de intentos en el centro, por encima del rótulo.
   await page.getByText("HTTP 503").last().evaluate((el) => el.scrollIntoView({ block: "center" }));

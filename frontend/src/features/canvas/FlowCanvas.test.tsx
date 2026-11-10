@@ -38,6 +38,15 @@ test("en modo ejecución el nombre accesible incluye estado e intentos", () => {
   expect(screen.getByRole("button", { name: "Paso cobro: fallida, 3 de 3 intentos" })).toBeInTheDocument();
 });
 
+test("los nodos no usan data-status: ese atributo identifica la insignia de estado", () => {
+  const steps = [
+    { step_id: "fetch_order", status: "succeeded", attempt_count: 1, max_attempts: 3, error: null, started_at: null, finished_at: null },
+  ] as unknown as StepView[];
+  const { container } = show(<FlowCanvas definition={DEFINITION} steps={steps} />);
+  expect(container.querySelector("[data-status]")).toBeNull();
+  expect(container.querySelector('[data-run="succeeded"]')).not.toBeNull();
+});
+
 test("un paso sin registro en la ejecución se anuncia como no ejecutado", () => {
   show(<FlowCanvas definition={DEFINITION} steps={[]} />);
   expect(screen.getByRole("button", { name: "Paso cobro: no ejecutado" })).toBeInTheDocument();

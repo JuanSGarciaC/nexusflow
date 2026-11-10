@@ -32,6 +32,8 @@ interface FlowCanvasProps {
 
 const NODE_W = 210;
 const NODE_H = 72;
+// En flujos pequeños el minimapa no orienta y tapa nodos: solo aparece a partir de este tamaño.
+const MINIMAP_FROM = 9;
 const NODE_TYPES = { step: StepNode };
 const NO_TRIGGERS: CanvasTrigger[] = [];
 const EDGE_LABELS = { next: undefined, true: "sí", false: "no" } as const;
@@ -137,13 +139,15 @@ export default function FlowCanvas({ definition, steps, triggers = NO_TRIGGERS, 
       >
         <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="rgba(255,255,255,0.09)" />
         <Controls showInteractive={false} position="bottom-left" />
-        <MiniMap
-          pannable
-          zoomable
-          position="bottom-right"
-          nodeColor={(node) => STATUS_COLORS[(node.data as StepNodeData).run?.status ?? ""] ?? "#3b3f58"}
-          maskColor="rgba(7,8,13,0.7)"
-        />
+        {nodes.length >= MINIMAP_FROM && (
+          <MiniMap
+            pannable
+            zoomable
+            position="bottom-right"
+            nodeColor={(node) => STATUS_COLORS[(node.data as StepNodeData).run?.status ?? ""] ?? "#3b3f58"}
+            maskColor="rgba(7,8,13,0.7)"
+          />
+        )}
       </ReactFlow>
     </div>
   );

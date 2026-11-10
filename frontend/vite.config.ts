@@ -35,10 +35,10 @@ export default defineConfig({
       // Tipos generados, punto de entrada y propias pruebas no cuentan.
       exclude: ["src/**/*.test.*", "src/test/**", "src/api/schema.d.ts", "src/main.tsx", "src/vite-env.d.ts"],
       reporter: ["text-summary", "text"],
-      // SUELO anti-regresión, no objetivo: unos puntos por debajo de lo medido (74,2 %
-      // sentencias, 63,1 % ramas, 63,6 % funciones, 74,8 % líneas); ver docs/performance.md.
+      // SUELO anti-regresión, no objetivo: unos puntos por debajo de lo medido (82,6 %
+      // sentencias, 73,1 % ramas, 71,8 % funciones, 82,9 % líneas); ver docs/performance.md.
       // Súbelo cuando añadas pruebas; nunca lo bajes para que pase un cambio.
-      thresholds: { statements: 72, branches: 61, functions: 61, lines: 72 },
+      thresholds: { statements: 80, branches: 70, functions: 69, lines: 80 },
     },
   },
 });

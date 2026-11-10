@@ -69,7 +69,8 @@ export function StepNode({ data }: NodeProps<Node<StepNodeData>>) {
       tabIndex={data.trigger ? undefined : 0}
       aria-label={accessibleName(data)}
       data-kind={data.kind}
-      data-status={data.run === null ? "skipped" : data.run?.status}
+      // data-run y no data-status: ese atributo es de StatusBadge y las pruebas E2E lo buscan.
+      data-run={data.run === null ? "skipped" : data.run?.status}
       data-dimmed={data.dimmed || undefined}
       data-unreachable={!data.reachable || undefined}
       onClick={data.onSelect}
