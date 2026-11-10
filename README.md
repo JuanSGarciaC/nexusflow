@@ -17,10 +17,10 @@ deduplica; un viewer no puede ejecutar; credenciales sin secreto a la vista y au
 Guion completo para presentarla en [docs/demo.md](docs/demo.md).*
 
 > **Estado del proyecto:** se está construyendo por fases verificables.
-> **Fases 1 a 10 completadas y revisadas:** fundaciones, autenticación y RBAC, definición
+> **Fases 1 a 11 completadas y revisadas:** fundaciones, autenticación y RBAC, definición
 > de flujos, motor de ejecución, credenciales cifradas, webhooks firmados, métricas y
-> auditoría, panel web, E2E con datos de demostración y guía de despliegue, y programaciones
-> cron. La revisión de
+> auditoría, panel web, E2E con datos de demostración y guía de despliegue, programaciones
+> cron y rediseño del panel con lienzo de flujos. La revisión de
 > seguridad ([OWASP API Top 10](docs/security-review.md)) y la de rendimiento
 > ([mediciones](docs/performance.md)) están documentadas con sus pruebas.
 > Esta documentación describe solo lo que ya existe y está probado. Lo pendiente aparece en la
@@ -51,8 +51,9 @@ demostración de `nexusflow seed-demo`, que son ficticios. Se regeneran con
 | | |
 |---|---|
 | ![Panel de métricas](docs/screenshots/01-panel.png)<br>**Panel:** volumen, tasa de éxito, p50/p95 y últimos fallos, calculados en PostgreSQL | ![Programaciones cron](docs/screenshots/04-programaciones.png)<br>**Programaciones cron** con zona horaria, próximo y último disparo |
-| ![Cobro VIP con reintentos](docs/screenshots/06-detalle-ejecucion.png)<br>**Reintentos:** la pasarela simulada falla dos veces con 503 y el motor reintenta con la misma `Idempotency-Key` | ![Ejecución fallida](docs/screenshots/07-ejecucion-fallida.png)<br>**Error clasificado:** un 404 no se reintenta y se muestra el paso que falló |
-| ![Editor de flujos](docs/screenshots/03-editor-flujo.png)<br>**Editor** con validación del grafo y versiones inmutables | ![Credenciales](docs/screenshots/08-credenciales.png)<br>**Credenciales** de solo escritura: solo se ven metadatos y una pista |
+| ![Cobro VIP con reintentos](docs/screenshots/06-detalle-ejecucion.png)<br>**Lienzo de la ejecución:** cada paso toma el color de su estado y el contador marca los reintentos (la pasarela simulada falla dos veces con 503 y el motor reintenta con la misma `Idempotency-Key`) | ![Ejecución fallida](docs/screenshots/07-ejecucion-fallida.png)<br>**Error clasificado:** un 404 no se reintenta y se muestra el paso que falló |
+| ![Editor de flujos](docs/screenshots/03-editor-flujo.png)<br>**Editor** con el flujo dibujado en un lienzo que sigue al JSON, validación del grafo y versiones inmutables | ![Credenciales](docs/screenshots/08-credenciales.png)<br>**Credenciales** de solo escritura: solo se ven metadatos y una pista |
+| ![Webhooks salientes](docs/screenshots/11-webhooks.png)<br>**Webhooks salientes:** suscripciones, historial de entregas, ping y reenvío de las agotadas | |
 | ![Auditoría](docs/screenshots/09-auditoria.png)<br>**Auditoría** de solo inserción: la ejecución lanzada por el cron aparece sin actor humano | ![Dashboard de Grafana](docs/screenshots/10-grafana.png)<br>**Observabilidad:** dashboard de Grafana sobre `/metrics` durante una prueba de carga con k6 (≈12 ejecuciones/s). Ver [deploy/observability](deploy/observability/README.md) |
 
 ## Qué demuestra este proyecto
@@ -112,7 +113,8 @@ nexusflow/
 │  ├─ src/
 │  │  ├─ api/             # cliente tipado (openapi-fetch), sesión y errores RFC 9457
 │  │  ├─ auth/            # login, proveedor de sesión, guardas por permiso
-│  │  ├─ features/        # panel, flujos, ejecuciones, credenciales, auditoría, usuarios
+│  │  ├─ features/        # panel, flujos, lienzo, ejecuciones, webhooks, credenciales, auditoría, usuarios
+│  │  ├─ styles/          # tokens del sistema visual y estilos globales
 │  │  └─ components/      # layout y componentes compartidos
 │  ├─ nginx.conf · security-headers.conf   # proxy al mismo origen y CSP
 │  ├─ Dockerfile · package.json · pnpm-lock.yaml
@@ -271,14 +273,17 @@ pnpm exec playwright install chromium     # una vez
 $env:E2E_PASSWORD = "demo-clave-larga-2026"; pnpm e2e
 ```
 
-Las 8 pruebas cubren:
+Las 11 pruebas cubren:
 - un operador ejecuta un flujo y ve el resultado del worker;
 - la clave de idempotencia evita duplicados;
 - un editor ve los errores del validador y publica;
 - un viewer solo puede leer, incluso si fuerza la URL;
 - un cambio de rol queda auditado;
 - la sesión sobrevive a una recarga y el logout la invalida en el servidor;
-- un editor crea, pausa y elimina una programación cron (y el operador no la ve).
+- un editor crea, pausa y elimina una programación cron (y el operador no la ve);
+- un operador reejecuta una ejecución fallida y llega a la ejecución nueva;
+- un editor crea una suscripción de webhook, hace ping y ve la entrega;
+- un viewer no llega a los webhooks ni forzando la URL.
 
 En CI se ejecutan contra nginx + API + worker en Docker y, si fallan, se guarda el informe
 con trazas.
@@ -619,6 +624,7 @@ Credenciales (Fase 5):
 | 8 | Panel web React + TypeScript + Mantine | ✅ Completada |
 | 9 | E2E con Playwright, datos de demostración y guía de despliegue | ✅ Completada |
 | 10 | Programaciones cron con zona horaria | ✅ Completada |
+| 11 | Rediseño del panel: sistema visual, lienzo de flujos, disparadores, webhooks salientes, visor de versiones y reejecución | ✅ Completada |
 
 ## Decisiones técnicas
 
