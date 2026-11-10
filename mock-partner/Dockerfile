@@ -1,6 +1,12 @@
 # API externa simulada (solo para demos y CI). No forma parte del producto.
 FROM python:3.13-slim
 
+# La imagen base tarda en reconstruirse tras un parche de Debian: se aplican aquí las
+# actualizaciones de seguridad ya publicadas (p. ej. zlib1g), que Trivy exige en el CI.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY requirements.txt ./
 # --require-hashes: solo se instalan exactamente los paquetes verificados.
