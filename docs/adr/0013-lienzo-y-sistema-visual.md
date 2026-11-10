@@ -78,5 +78,8 @@ mutaciones de react-query. Hay una prueba que lo comprueba.
   mayor de Mantine obliga a revisarlos.
 - Los nodos del lienzo usan `data-run` y no `data-status`: ese atributo identifica la
   insignia de estado y las pruebas E2E lo buscan.
+- El lienzo no sabe qué rama eligió una condición: marca como recorrida una conexión cuando
+  su origen y su destino tienen registro. Si las dos ramas se reúnen, puede marcar también la
+  no tomada. Corregirlo exige que la API informe la rama elegida.
 - Toda la información del lienzo sigue disponible como texto: el acordeón de pasos y el JSON
   se conservan, y cada nodo tiene nombre accesible con su estado e intentos.
