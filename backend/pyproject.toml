@@ -2,7 +2,7 @@
 name = "nexusflow"
 version = "0.1.0"
 description = "NexusFlow: plataforma de automatización de procesos empresariales (API)"
-license = "MIT"
+license = "LicenseRef-Proprietary"
 authors = [
     { name = "JuanSGarciaC", email = "276046067+JuanSGarciaC@users.noreply.github.com" }
 ]

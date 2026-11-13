@@ -1,21 +1,40 @@
-MIT License
+Copyright (c) 2026 Juan Sebastián García C. (JuanSGarciaC)
+Todos los derechos reservados. / All rights reserved.
 
-Copyright (c) 2026 JuanSGarciaC
+ESPAÑOL
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Este repositorio es público únicamente para su consulta como parte del
+portafolio profesional del autor.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Se permite ver y leer el código, y lo que los Términos de Servicio de GitHub
+conceden a cualquier usuario de la plataforma (visualizar el repositorio y
+bifurcarlo dentro de GitHub).
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Sin autorización previa y por escrito del autor NO se permite usar, copiar,
+modificar, fusionar, publicar, distribuir, sublicenciar ni vender este
+software, completo o por partes, ni incorporarlo a otros productos o servicios.
+
+Para solicitar autorización, escribe al autor por medio de su perfil:
+https://github.com/JuanSGarciaC
+
+Los componentes de terceros incluidos en el repositorio conservan su propia
+licencia, indicada junto a cada uno.
+
+EL SOFTWARE SE ENTREGA «TAL CUAL», SIN GARANTÍA DE NINGÚN TIPO. EL AUTOR NO
+RESPONDE POR NINGÚN DAÑO DERIVADO DE SU CONSULTA O DE SU USO.
+
+ENGLISH
+
+This repository is public for viewing only, as part of the author's
+professional portfolio. You may read the code, and do what the GitHub Terms of
+Service grant every user (view and fork the repository within GitHub).
+
+Without the author's prior written permission you may NOT use, copy, modify,
+merge, publish, distribute, sublicense or sell this software, in whole or in
+part, or include it in other products or services.
+
+To request permission, contact the author through
+https://github.com/JuanSGarciaC
+
+Third-party components keep their own licenses. THE SOFTWARE IS PROVIDED
+"AS IS", WITHOUT WARRANTY OF ANY KIND.

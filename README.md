@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/JuanSGarciaC/nexusflow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/JuanSGarciaC/nexusflow/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.13-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![Licencia: todos los derechos reservados](https://img.shields.io/badge/licencia-todos%20los%20derechos%20reservados-lightgrey)
 
 Plataforma web de **automatización de procesos empresariales**. Permite definir flujos de
 trabajo con pasos, condiciones y acciones, integrarlos con APIs REST externas y ejecutarlos
@@ -679,4 +679,4 @@ El modelo de datos está documentado en [docs/data-model.md](docs/data-model.md)
 
 ## Licencia
 
-[MIT](LICENSE)
+Todos los derechos reservados. El código se publica para consulta como parte de mi portafolio: puedes leerlo, pero no usarlo, copiarlo, modificarlo ni distribuirlo sin mi autorización por escrito. Ver [LICENSE](LICENSE).
