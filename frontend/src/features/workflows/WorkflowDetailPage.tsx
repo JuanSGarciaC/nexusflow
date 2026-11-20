@@ -257,7 +257,7 @@ export function WorkflowDetailPage() {
   const canWrite = can("workflows:write") && w.status === "active";
 
   return (
-    <>
+    <div className="nf-reveal" data-motion="">
       <PageHeader
         title={w.name}
         description={w.description ?? undefined}
@@ -305,6 +305,6 @@ export function WorkflowDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="published">{w.published && <JsonView value={w.published.definition} maxHeight={600} />}</Tabs.Panel>
       </Tabs>
-    </>
+    </div>
   );
 }

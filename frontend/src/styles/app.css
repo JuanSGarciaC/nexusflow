@@ -123,6 +123,16 @@ body {
   50% { opacity: 0.35; transform: scale(0.8); }
 }
 
+/* Esqueleto → contenido: el contenido entra con un fundido corto en lugar de aparecer de golpe.
+   fill-mode backwards: al terminar no queda ningún transform (crearía un bloque contenedor). */
+.nf-reveal {
+  animation: nf-reveal 260ms ease-out backwards;
+}
+
+@keyframes nf-reveal {
+  from { opacity: 0; transform: translateY(4px); }
+}
+
 /* Todo lo que se mueve lleva data-motion: aquí se detiene de una vez. */
 @media (prefers-reduced-motion: reduce) {
   [data-motion],

@@ -1,0 +1,9 @@
+/* Encima de nodos y conexiones (z-index 4 del renderer), debajo de paneles y controles (5). */
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}

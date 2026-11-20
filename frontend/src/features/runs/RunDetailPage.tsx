@@ -205,7 +205,7 @@ function RunDetail({ runId }: { runId: string }) {
   };
 
   return (
-    <>
+    <div className="nf-reveal" data-motion="">
       <PageHeader
         title={`Ejecución ${shortId(r.id)}`}
         description={
@@ -294,6 +294,6 @@ function RunDetail({ runId }: { runId: string }) {
         </SimpleGrid>
       </Stack>
       {resolving && <ResolveModal runId={r.id} step={resolving} onClose={() => setResolving(null)} />}
-    </>
+    </div>
   );
 }

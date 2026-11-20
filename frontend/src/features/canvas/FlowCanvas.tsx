@@ -9,8 +9,11 @@ import { Text } from "@mantine/core";
 import { Background, BackgroundVariant, Controls, MarkerType, MiniMap, ReactFlow, type Edge, type Node } from "@xyflow/react";
 import { useMemo, useState } from "react";
 
+import { useMotionAllowed } from "../../lib/motion";
+
 import classes from "./FlowCanvas.module.css";
 import { COL_W, ROW_H, connectedPath, layoutFlow, type FlowDefinition } from "./layout";
+import { PacketLayer } from "./packets/PacketLayer";
 import { nodeRuns, traversedEdges, type StepView } from "./runState";
 import { StepNode, type StepNodeData } from "./StepNode";
 
@@ -34,6 +37,8 @@ const NODE_W = 210;
 const NODE_H = 72;
 // En flujos pequeños el minimapa no orienta y tapa nodos: solo aparece a partir de este tamaño.
 const MINIMAP_FROM = 9;
+// Retícula del fondo: la capa de paquetes enciende sus puntos, así que comparten medidas.
+const DOT_GRID = { gap: 22, size: 1.2 };
 const NODE_TYPES = { step: StepNode };
 const NO_TRIGGERS: CanvasTrigger[] = [];
 const EDGE_LABELS = { next: undefined, true: "sí", false: "no" } as const;
@@ -49,6 +54,8 @@ export default function FlowCanvas({ definition, steps, triggers = NO_TRIGGERS, 
   const [hovered, setHovered] = useState<string | null>(null);
   const layout = useMemo(() => layoutFlow(definition), [definition]);
   const runs = useMemo(() => (steps ? nodeRuns(steps) : null), [steps]);
+  // Con movimiento, los paquetes sustituyen al trazo discontinuo animado de las conexiones.
+  const packets = useMotionAllowed() && runs !== null;
 
   const { nodes, edges } = useMemo(() => {
     const path = hovered ? connectedPath(layout.edges, hovered) : null;
@@ -90,7 +97,7 @@ export default function FlowCanvas({ definition, steps, triggers = NO_TRIGGERS, 
         target: e.target,
         type: "smoothstep",
         label: EDGE_LABELS[e.kind],
-        animated: walked,
+        animated: walked && !packets,
         className: walked ? classes.walked : undefined,
         style: { opacity: faded ? 0.25 : 1 },
         markerEnd: { type: MarkerType.ArrowClosed },
@@ -107,7 +114,7 @@ export default function FlowCanvas({ definition, steps, triggers = NO_TRIGGERS, 
         }))
       : [];
     return { nodes: [...triggerNodes, ...stepNodes], edges: [...triggerEdges, ...flowEdges] };
-  }, [layout, runs, hovered, triggers, onSelectStep]);
+  }, [layout, runs, hovered, triggers, onSelectStep, packets]);
 
   if (layout.nodes.length === 0) {
     return (
@@ -137,7 +144,8 @@ export default function FlowCanvas({ definition, steps, triggers = NO_TRIGGERS, 
         elementsSelectable={false}
         aria-label="Lienzo del flujo"
       >
-        <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="rgba(255,255,255,0.09)" />
+        <Background variant={BackgroundVariant.Dots} gap={DOT_GRID.gap} size={DOT_GRID.size} color="rgba(255,255,255,0.09)" />
+        {packets && steps && runs && <PacketLayer edges={layout.edges} steps={steps} runs={runs} grid={DOT_GRID} />}
         <Controls showInteractive={false} position="bottom-left" />
         {nodes.length >= MINIMAP_FROM && (
           <MiniMap

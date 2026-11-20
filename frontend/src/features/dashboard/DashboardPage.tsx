@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 
 import { api, unwrap } from "../../api/client";
+import { AnimatedNumber } from "../../components/AnimatedNumber";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { GlowCard } from "../../components/GlowCard";
 import { PageHeader } from "../../components/PageHeader";
@@ -17,14 +18,17 @@ const WINDOWS = [
   { label: "30 días", value: "720" },
 ];
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+// Formatos estables (fuera del componente): AnimatedNumber reanima si cambia la función.
+const formatCount = (n: number | null) => (n === null ? "—" : String(Math.round(n)));
+
+function Stat({ label, value, format = formatCount, hint }: { label: string; value: number | null; format?: (n: number | null) => string; hint?: string }) {
   return (
     <GlowCard tilt>
       <Text size="xs" c="dimmed" tt="uppercase" fw={600} lts={0.6}>
         {label}
       </Text>
       <Text fz={34} fw={700} lh={1.15} mt={6} className="nf-gradient-text" data-testid={`stat-${label}`}>
-        {value}
+        <AnimatedNumber value={value} format={format} />
       </Text>
       {hint && (
         <Text size="xs" c="dimmed">
@@ -64,12 +68,12 @@ export function DashboardPage() {
       {!m ? (
         <Skeleton h={300} />
       ) : (
-        <Stack gap="lg">
+        <Stack gap="lg" className="nf-reveal" data-motion="">
           <SimpleGrid cols={{ base: 2, md: 4 }}>
-            <Stat label="Ejecuciones" value={String(m.total_runs)} />
-            <Stat label="Tasa de éxito" value={formatPercent(m.success_rate)} hint="Sin contar canceladas" />
-            <Stat label="Duración p95" value={formatDuration(m.run_duration.p95_ms)} hint={`p50 ${formatDuration(m.run_duration.p50_ms)}`} />
-            <Stat label="Reintentos" value={String(m.retries)} hint={`Intentos totales: ${m.attempts}`} />
+            <Stat label="Ejecuciones" value={m.total_runs} />
+            <Stat label="Tasa de éxito" value={m.success_rate ?? null} format={formatPercent} hint="Sin contar canceladas" />
+            <Stat label="Duración p95" value={m.run_duration.p95_ms ?? null} format={formatDuration} hint={`p50 ${formatDuration(m.run_duration.p50_ms)}`} />
+            <Stat label="Reintentos" value={m.retries} hint={`Intentos totales: ${m.attempts}`} />
           </SimpleGrid>
 
           <Card withBorder>
