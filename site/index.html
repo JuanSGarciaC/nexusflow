@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="es" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NexusFlow · flujos que sobreviven a las APIs que fallan</title>
+  <meta name="description" content="Motor de automatización de procesos: reintentos con backoff, idempotencia, webhooks firmados y auditoría. Proyecto de portafolio con datos ficticios.">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="main.js"></script>
+</head>
+<body>
+  <a class="skip" href="#contenido">Saltar al contenido</a>
+
+  <header class="nav">
+    <a class="nav__brand" href="#inicio">
+      <img src="favicon.svg" alt="" width="22" height="22">
+      NexusFlow
+    </a>
+    <nav aria-label="Secciones">
+      <a href="#fallo">El fallo</a>
+      <a href="#webhook">Webhook</a>
+      <a href="#calidad">Calidad</a>
+      <a href="#capturas">Capturas</a>
+    </nav>
+  </header>
+
+  <main id="contenido">
+    <!-- Hero: B1 (split text) sobre E3 (rejilla de puntos) -->
+    <section class="hero" id="inicio">
+      <div class="hero__grid" aria-hidden="true"></div>
+      <div class="hero__inner">
+        <p class="eyebrow">Automatización de procesos · FastAPI · PostgreSQL · Celery · React</p>
+        <h1 class="hero__title" data-split>Flujos que sobreviven a las APIs que fallan.</h1>
+        <p class="hero__lead">
+          NexusFlow ejecuta flujos de trabajo que llaman a sistemas de terceros.
+          Lo interesante no es el panel: es qué pasa cuando el tercero responde
+          <code>503</code> o cuando el mismo evento llega dos veces.
+        </p>
+        <div class="hero__cta">
+          <a class="btn btn--primary" href="#fallo">Ver un cobro que falla</a>
+          <a class="btn" href="https://github.com/JuanSGarciaC/nexusflow">Código en GitHub</a>
+        </div>
+        <p class="hero__note">Proyecto de portafolio. Todos los datos son ficticios y el sistema corre en local.</p>
+      </div>
+    </section>
+
+    <!-- Estrella: C4 (sección fija) + H5 (diagrama de nodos con datos que circulan) -->
+    <section class="story" id="fallo" aria-labelledby="fallo-titulo">
+      <div class="story__head reveal">
+        <p class="eyebrow">Caso real del guion de la demo</p>
+        <h2 id="fallo-titulo">Un cobro, dos <code>503</code> y un solo cargo</h2>
+        <p>Baja despacio: cada paso es lo que hace el motor con el flujo <em>Demo · Cobro a cliente VIP</em>.</p>
+      </div>
+
+      <div class="story__body">
+        <div class="story__visual">
+          <figure class="flow" data-step="5" aria-label="Diagrama del flujo de cobro">
+            <svg class="flow__svg" viewBox="0 0 600 560" role="img" aria-labelledby="flow-desc">
+              <desc id="flow-desc">Flujo de tres pasos: lookup consulta el CRM del socio, is_vip comprueba la condición y charge cobra en la pasarela de pagos. La pasarela responde 503 dos veces; el tercer intento, con la misma Idempotency-Key, devuelve 201 y queda un solo cargo.</desc>
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 10 5 0 10z" class="flow__arrowhead"/>
+                </marker>
+              </defs>
+
+              <!-- Frontera de red: a la derecha, sistemas que NexusFlow no controla -->
+              <line class="flow__boundary" x1="305" y1="120" x2="305" y2="460"/>
+              <text class="flow__boundary-label" x="315" y="134">fuera de NexusFlow</text>
+
+              <!-- Conexiones -->
+              <path class="flow__edge" data-edge="in-lookup" d="M140 88V146" marker-end="url(#arrow)"/>
+              <path class="flow__edge" data-edge="lookup-vip" d="M140 212V270" marker-end="url(#arrow)"/>
+              <path class="flow__edge" data-edge="vip-charge" d="M140 336V394" marker-end="url(#arrow)"/>
+              <text class="flow__edge-label" x="150" y="370">on_true</text>
+              <path class="flow__edge flow__edge--ext" data-edge="lookup-crm" d="M250 180H358" marker-end="url(#arrow)"/>
+              <path class="flow__edge flow__edge--ext" data-edge="charge-gw" d="M250 428H358" marker-end="url(#arrow)"/>
+
+              <!-- Clave de idempotencia: la misma en todos los intentos -->
+              <g class="flow__key">
+                <rect x="244" y="470" width="112" height="22" rx="11"/>
+                <text x="300" y="485">Idempotency-Key</text>
+              </g>
+              <text class="flow__key-value" x="300" y="508">7f3a…:charge</text>
+
+              <!-- Nodos del motor -->
+              <g class="node" data-node="input" transform="translate(30 24)">
+                <rect width="220" height="64" rx="12"/>
+                <text class="node__title" x="16" y="27">Entrada</text>
+                <text class="node__sub" x="16" y="47">c-100 · 49,90 · clave demo-1</text>
+                <text class="node__tag" x="204" y="27">misma ejecución</text>
+              </g>
+              <g class="node" data-node="lookup" transform="translate(30 148)">
+                <rect width="220" height="64" rx="12"/>
+                <text class="node__title" x="16" y="27">lookup</text>
+                <text class="node__sub" x="16" y="47">GET /crm/customers/c-100</text>
+                <text class="node__tag" x="204" y="27">200</text>
+              </g>
+              <g class="node" data-node="vip" transform="translate(30 272)">
+                <rect width="220" height="64" rx="12"/>
+                <text class="node__title" x="16" y="27">is_vip</text>
+                <text class="node__sub" x="16" y="47">tier == "vip"</text>
+                <text class="node__tag" x="204" y="27">true</text>
+              </g>
+              <g class="node" data-node="charge" transform="translate(30 396)">
+                <rect width="220" height="64" rx="12"/>
+                <text class="node__title" x="16" y="27">charge</text>
+                <text class="node__sub" x="16" y="47">POST /payments/charges</text>
+                <text class="node__tag" x="204" y="27" data-attempt>intento 3/4</text>
+              </g>
+
+              <!-- Sistemas externos -->
+              <g class="node node--ext" data-node="crm" transform="translate(360 148)">
+                <rect width="210" height="64" rx="12"/>
+                <text class="node__title" x="16" y="27">CRM del socio</text>
+                <text class="node__sub" x="16" y="47">API externa · Bearer</text>
+              </g>
+              <g class="node node--ext" data-node="gw" transform="translate(360 396)">
+                <rect width="210" height="64" rx="12"/>
+                <text class="node__title" x="16" y="27">Pasarela de pagos</text>
+                <text class="node__sub" x="16" y="47">API externa · X-Api-Key</text>
+                <text class="node__tag" x="194" y="27" data-gw-code>201</text>
+              </g>
+
+              <!-- Libro de cargos de la pasarela -->
+              <g class="ledger" transform="translate(360 496)">
+                <rect width="210" height="48" rx="10"/>
+                <text class="ledger__label" x="16" y="30">Cargos registrados</text>
+                <text class="ledger__value" x="194" y="31" data-ledger>1</text>
+              </g>
+
+              <!-- Paquete que viaja por el diagrama (lo mueve main.js) -->
+              <circle class="packet" r="7" cx="0" cy="0"/>
+            </svg>
+
+            <figcaption class="attempts" aria-live="polite">
+              <p class="attempts__title">Historial del paso <code>charge</code></p>
+              <ol class="attempts__list">
+                <li data-row="1"><span class="code code--fail">503</span> intento 1 · transitorio, reintento en 0,5–1 s</li>
+                <li data-row="2"><span class="code code--fail">503</span> intento 2 · reintento en 1–2 s</li>
+                <li data-row="3"><span class="code code--ok">201</span> intento 3 · cargo creado</li>
+                <li data-row="4"><span class="code code--idle">—</span> reenvío con <code>demo-1</code> · sin llamada nueva</li>
+              </ol>
+            </figcaption>
+          </figure>
+        </div>
+
+        <ol class="story__steps">
+          <li class="step" data-step="0">
+            <p class="step__n">0 · El flujo</p>
+            <h3>Tres pasos y dos terceros</h3>
+            <p>
+              <code>lookup</code> consulta el CRM, <code>is_vip</code> decide y <code>charge</code> cobra.
+              El CRM y la pasarela están al otro lado de la red: NexusFlow no controla cuándo fallan.
+              En la demo, la pasarela simulada responde <code>503</code> a las dos primeras llamadas.
+            </p>
+          </li>
+          <li class="step" data-step="1">
+            <p class="step__n">1 · Consulta y condición</p>
+            <h3>El cliente es VIP</h3>
+            <p>
+              El CRM responde <code>200</code> con <code>tier: "vip"</code>. La condición es verdadera
+              y el motor encola <code>charge</code>. Cada paso lo reclama un worker de Celery de
+              forma atómica en PostgreSQL: si el mensaje llega dos veces, solo uno lo ejecuta.
+            </p>
+          </li>
+          <li class="step" data-step="2">
+            <p class="step__n">2 · Intento 1</p>
+            <h3>La pasarela responde <code>503</code></h3>
+            <p>
+              Un <code>503</code> es transitorio: la ejecución no falla, se programa un reintento.
+              La petición lleva <code>Idempotency-Key</code>, una clave estable del paso
+              (<code>&lt;run&gt;:charge</code>) que no cambia entre intentos.
+            </p>
+          </li>
+          <li class="step" data-step="3">
+            <p class="step__n">3 · Intento 2</p>
+            <h3>Otro <code>503</code>, más espera</h3>
+            <p>
+              El backoff es exponencial con <em>jitter</em>: la mitad de la espera es fija y la otra
+              aleatoria, para que los clientes que fallaron a la vez no vuelvan todos en el mismo
+              instante. Si el socio envía <code>Retry-After</code>, se respeta. La clave sigue siendo la misma.
+            </p>
+          </li>
+          <li class="step" data-step="4">
+            <p class="step__n">4 · Intento 3</p>
+            <h3><code>201</code> y un solo cargo</h3>
+            <p>
+              La pasarela cobra y la ejecución termina en <em>succeeded</em>. Como los tres intentos
+              llevaron la misma clave, si un <code>503</code> hubiera escondido un cobro ya hecho,
+              la pasarela devolvería ese cargo en lugar de crear otro.
+            </p>
+          </li>
+          <li class="step" data-step="5">
+            <p class="step__n">5 · Doble clic</p>
+            <h3>El operador pulsa otra vez</h3>
+            <p>
+              Lanzar el flujo de nuevo con la misma clave <code>demo-1</code> devuelve la misma
+              ejecución: no hay otra llamada a la pasarela ni otro cargo. Todo el recorrido lo cubren
+              pruebas contra PostgreSQL, Redis y una API externa real en local.
+            </p>
+            <p class="step__links">
+              <a href="https://github.com/JuanSGarciaC/nexusflow/blob/main/docs/demo.md">Guion de la demo</a>
+              <a href="https://github.com/JuanSGarciaC/nexusflow/blob/main/backend/src/nexusflow/engine/planning.py">Cálculo del backoff</a>
+            </p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- H3: terminal simulada con la salida real del guion -->
+    <section class="webhook" id="webhook" aria-labelledby="webhook-titulo">
+      <div class="webhook__text reveal">
+        <p class="eyebrow">Webhook entrante</p>
+        <h2 id="webhook-titulo">El ERP avisa dos veces; se ejecuta una</h2>
+        <ul class="facts">
+          <li><strong>Firma HMAC con marca de tiempo.</strong> Sin la firma correcta: <code>401</code> y no se crea nada.</li>
+          <li><strong>Respuesta inmediata.</strong> La firmada da <code>202</code>; el trabajo va al worker.</li>
+          <li><strong>Deduplicación por evento.</strong> El reenvío del mismo <code>X-NexusFlow-Event-Id</code> devuelve <code>200</code> con la misma ejecución.</li>
+        </ul>
+        <p class="muted">
+          Es la salida del script del <a href="https://github.com/JuanSGarciaC/nexusflow/blob/main/docs/demo.md#webhook-desde-la-terminal">guion de la demo</a>;
+          el <a href="https://github.com/JuanSGarciaC/nexusflow/blob/main/docs/caso-de-estudio-webhook.md">caso de estudio</a> lo recorre de punta a punta.
+        </p>
+      </div>
+
+      <div class="term reveal" data-term>
+        <div class="term__bar">
+          <span class="term__dot"></span><span class="term__dot"></span><span class="term__dot"></span>
+          <span class="term__title">PowerShell · nexusflow</span>
+          <button class="term__replay" type="button" data-term-replay hidden>Repetir</button>
+        </div>
+<pre class="term__screen" aria-label="Salida de la terminal"><code><span class="t-line t-cmd" data-type>python webhook_demo.py</span>
+<span class="t-line t-dim">→ POST /api/v1/hooks/{id}  X-NexusFlow-Signature: t=…,v1=000…</span>
+<span class="t-line">1. Firma incorrecta : (<span class="t-fail">401</span>, {...})</span>
+<span class="t-line t-dim">→ POST /api/v1/hooks/{id}  firmado · Event-Id: erp-…</span>
+<span class="t-line">2. Firmado          : (<span class="t-run">202</span>, {'run_id': '…', 'duplicate': False})</span>
+<span class="t-line t-dim">→ mismo cuerpo, mismo Event-Id</span>
+<span class="t-line">3. Mismo evento     : (<span class="t-ok">200</span>, {'run_id': '…', 'duplicate': <span class="t-ok">True</span>})</span></code></pre>
+      </div>
+    </section>
+
+    <!-- A7: cifras medidas -->
+    <section class="metrics" id="calidad" aria-labelledby="calidad-titulo">
+      <h2 id="calidad-titulo" class="reveal">Cada cosa que se ve tiene una prueba que falla si se rompe</h2>
+      <ul class="metrics__list">
+        <li class="metric reveal">
+          <span class="metric__value" data-count="373">373</span>
+          <span class="metric__label">pruebas de backend contra PostgreSQL y Redis reales</span>
+        </li>
+        <li class="metric reveal">
+          <span class="metric__value" data-count="88" data-suffix=" %">88 %</span>
+          <span class="metric__label">de cobertura con ramas (el CI exige 85 %)</span>
+        </li>
+        <li class="metric reveal">
+          <span class="metric__value" data-count="50">50</span>
+          <span class="metric__label">operaciones de la API probadas contra cada rol</span>
+        </li>
+        <li class="metric reveal">
+          <span class="metric__value" data-count="12" data-prefix="≈" data-suffix="/s">≈12/s</span>
+          <span class="metric__label">ejecuciones sostenidas en la prueba de carga con k6</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- A2: rejilla de capturas con entrada escalonada -->
+    <section class="shots" id="capturas" aria-labelledby="capturas-titulo">
+      <div class="reveal">
+        <p class="eyebrow">El panel</p>
+        <h2 id="capturas-titulo">Capturas del sistema real</h2>
+        <p class="muted">Tomadas con los datos ficticios de <code>nexusflow seed-demo</code> sobre API, worker, beat, PostgreSQL y Redis.</p>
+      </div>
+      <ul class="shots__grid" data-stagger>
+        <li class="shot shot--tall">
+          <img src="img/06-detalle-ejecucion.png" width="1360" height="1646" loading="lazy" alt="Lienzo de una ejecución del cobro VIP con el contador de reintentos en el paso charge">
+          <p><strong>Ejecución:</strong> cada paso toma el color de su estado; el contador marca los reintentos.</p>
+        </li>
+        <li class="shot">
+          <img src="img/03-editor-flujo.png" width="1360" height="820" loading="lazy" alt="Editor de flujos con el lienzo junto al JSON">
+          <p><strong>Editor:</strong> el lienzo sigue al JSON; las versiones son inmutables.</p>
+        </li>
+        <li class="shot">
+          <img src="img/01-panel.png" width="1360" height="820" loading="lazy" alt="Panel de métricas con volumen, tasa de éxito y latencias">
+          <p><strong>Panel:</strong> volumen, tasa de éxito y p50/p95 calculados en PostgreSQL.</p>
+        </li>
+        <li class="shot">
+          <img src="img/15-entregas.png" width="1360" height="820" loading="lazy" alt="Entregas de un webhook saliente con su estado">
+          <p><strong>Webhooks salientes:</strong> entregas firmadas; las agotadas se pueden reenviar.</p>
+        </li>
+        <li class="shot">
+          <img src="img/10-grafana.png" width="1440" height="1560" loading="lazy" alt="Dashboard de Grafana durante una prueba de carga">
+          <p><strong>Observabilidad:</strong> Grafana sobre <code>/metrics</code> durante la prueba de carga.</p>
+        </li>
+      </ul>
+    </section>
+
+    <section class="stack reveal" aria-labelledby="stack-titulo">
+      <h2 id="stack-titulo">Cómo está hecho</h2>
+      <dl class="stack__list">
+        <div><dt>Backend</dt><dd>FastAPI, Pydantic v2, SQLAlchemy 2 async, errores RFC 9457</dd></div>
+        <div><dt>Ejecución</dt><dd>Celery <em>at-least-once</em>, reclamo atómico en PostgreSQL, lease y barrido de recuperación</dd></div>
+        <div><dt>Seguridad</dt><dd>Argon2id, JWT de vida corta, RBAC, cliente HTTP anti-SSRF, credenciales cifradas</dd></div>
+        <div><dt>Frontend</dt><dd>React 19, TypeScript estricto, Mantine, cliente tipado generado desde OpenAPI</dd></div>
+      </dl>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>NexusFlow · proyecto de portafolio · © Todos los derechos reservados.</p>
+    <p><a href="https://github.com/JuanSGarciaC/nexusflow">Repositorio</a></p>
+  </footer>
+</body>
+</html>
