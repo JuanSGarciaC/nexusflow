@@ -333,7 +333,7 @@ p { margin: 0 0 1em; }
   .flow__svg { max-height: 42vh; }
   .attempts { display: none; }
   .story__steps { padding: 2vh 0 20vh; }
-  .step { min-height: 60vh; }
+  .step { min-height: 55vh; justify-content: flex-start; padding-top: 1.5rem; }
   .webhook { grid-template-columns: 1fr; }
   .term__screen { font-size: 0.74rem; }
   .metrics__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }

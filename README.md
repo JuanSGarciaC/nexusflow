@@ -13,6 +13,7 @@ en segundo plano con reintentos, timeouts e idempotencia.
 ## Contenido
 
 - [Capturas](#capturas) · [guion de la demo](docs/demo.md)
+- [Landing](#landing)
 - [Qué demuestra este proyecto](#qué-demuestra-este-proyecto)
 - [Arquitectura](#arquitectura)
 - [Inicio rápido con Docker](#inicio-rápido-con-docker)
@@ -61,6 +62,45 @@ Medido el 9 nov 2026 sobre esta versión, contra el stack real en Docker:
 
 Detalle de pesos en [docs/performance.md](docs/performance.md) y decisiones en el
 [ADR-0013](docs/adr/0013-lienzo-y-sistema-visual.md).
+
+## Landing
+
+Página de presentación del proyecto en [`site/`](site/), aparte del panel. Cuenta con
+animaciones lo que el panel enseña con datos: el flujo *Demo · Cobro a cliente VIP* recibe
+**503**, **503** y **201**, siempre con la misma `Idempotency-Key`, y la pasarela registra **un solo**
+cargo. Es HTML, CSS y JS puro, sin dependencias, sin build y sin CDN.
+
+![La landing en movimiento: el scroll avanza por el cobro VIP paso a paso](docs/demo/landing-demo.gif)
+
+| | |
+|---|---|
+| ![Hero de la landing](docs/screenshots/landing-hero.png)<br>**Hero:** titular que entra por palabras sobre una rejilla de puntos | ![Terminal del webhook](docs/screenshots/landing-webhook.png)<br>**Webhook:** terminal con la salida real del [guion](docs/demo.md#webhook-desde-la-terminal): 401, 202 y 200 con `duplicate: true` |
+| ![Diagrama del cobro VIP al terminar](docs/screenshots/landing-cobro-vip.png)<br>**El fallo:** el diagrama queda fijo y cada tramo de scroll es un paso del motor; el historial y el contador de cargos se actualizan | <img src="docs/screenshots/landing-movil.png" alt="La landing en un móvil de 390 px" width="220"><br>**Móvil:** el diagrama queda arriba, compacto, y los pasos pasan por debajo |
+
+Efectos, con los códigos del catálogo de efectos web del portafolio:
+
+| Sección | Técnica | Por qué |
+|---|---|---|
+| El fallo | **C4 + H5**: sección fija y diagrama de nodos con datos que circulan | Es el corazón del proyecto: reintento con backoff e idempotencia, paso a paso |
+| Hero | B1 texto por palabras + E3 rejilla de puntos | La rejilla recuerda al lienzo de flujos del panel |
+| Webhook | H3 terminal simulada | En la demo real este caso se enseña por terminal |
+| Calidad | A7 cifras que cuentan hasta su valor | Son cifras medidas de este README |
+| Capturas | A2 entrada escalonada + A1 aparición al hacer scroll | |
+
+Con `prefers-reduced-motion` no se anima nada; sin JS, todo el texto se lee y el diagrama
+aparece en su estado final. Solo se animan `transform` y `opacity`, y una CSP en `<meta>` solo
+admite recursos propios.
+
+Verla en local (Python 3, sin instalar nada; también funciona abriendo `site/index.html`):
+
+```powershell
+cd site
+python -m http.server 8765 --bind 127.0.0.1
+# http://127.0.0.1:8765/
+```
+
+Está lista para GitHub Pages (rutas relativas, capturas copiadas en `site/img/`), pero
+**no está publicada**. Detalles en [site/README.md](site/README.md).
 
 ## Qué demuestra este proyecto
 

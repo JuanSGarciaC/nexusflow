@@ -295,13 +295,22 @@
       );
     }
 
+    // En móvil el diagrama fijo tapa la mitad superior: el paso se activa justo debajo de él.
+    // shortcut: se calcula una vez al cargar; si se gira el móvil, recargar.
+    function activationLine() {
+      if (!window.matchMedia("(max-width: 900px)").matches) return "-48% 0px -48% 0px";
+      var visual = document.querySelector(".story__visual").getBoundingClientRect().height + 56;
+      var line = Math.round(visual + (window.innerHeight - visual) * 0.3);
+      return "-" + line + "px 0px -" + (window.innerHeight - line - 1) + "px 0px";
+    }
+
     apply(0);
     if (!("IntersectionObserver" in window)) { apply(5); return; }
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
         if (e.isIntersecting) activate(Number(e.target.dataset.step));
       });
-    }, { rootMargin: "-48% 0px -48% 0px" });
+    }, { rootMargin: activationLine() });
     steps.forEach(function (s) { io.observe(s); });
   }
 
